@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "version": "kepmendagri-300.2.2-2138-2025",
+  "source": "cahya dsn wilayah.sql (Kepmendagri No. 300.2.2-2138 Tahun 2025)",
+  "generatedAt": "2026-09-03T05:04:07.871892Z",
+  "sourceFile": "wilayah.sql",
+  "sourceSha256": "c4c3396d9380d4edee072af1d9dff83573b574d7cd00a6562cf82e200e954031",
+  "datasetSha256": "7aa19a16472ba59a8b170e1e963ecc5283e650a9b3e0c7cda238ab820743e531",
+  "files": {
+    "provinces": {
+      "path": "provinces.csv",
+      "count": 38,
+      "sha256": "d7040ea043c5a30969aa280108461042e92358862f4ad31fd688d3ee69f26dff"
+    },
+    "regencies": {
+      "path": "regencies.csv",
+      "count": 514,
+      "sha256": "ce57364f5b82129e01d0d48bc973f63c12c1111a6d8d7476fa77a2617a666290"
+    },
+    "districts": {
+      "path": "districts.csv",
+      "count": 7285,
+      "sha256": "8c0732ec135dd92ae05c4e50e1c20e4bbbcf3fbda24fc9f3ee3228c653afc766"
+    },
+    "villages": {
+      "path": "villages.csv",
+      "count": 83762,
+      "sha256": "168892080fe47ae6b1b441f625c6709158b6d2c9b716f1d7841f1417d3b4ceaa"
+    }
+  }
+}
