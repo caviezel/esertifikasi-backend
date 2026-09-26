@@ -45,3 +45,5 @@ storage/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+publish/
