@@ -233,7 +233,11 @@ public sealed class MonitoringController : ControllerBase {
   private async Task<(LandBoundaryImportPreview Preview, List<LandBoundaryInspection> Inspections)> ValidateLandBoundaryRowsAsync(
       Guid poktanId, IReadOnlyList<(int RowNumber, BulkLandBoundaryRow? Data, List<string> Errors)> rows, CancellationToken ct) {
     var farmers = await _db.Petani.AsNoTracking().Where(x => x.PoktanId == poktanId && x.Nik != null)
-        .Select(x => new { x.Id, x.Nik, Lahan = x.Lahan.Select(l => new { l.Id, l.NoLegalitas }).ToList() }).ToListAsync(ct);
+        .Select(x => new {
+          x.Id,
+          Nik = x.Nik!,
+          Lahan = x.Lahan.Select(l => new { l.Id, NoLegalitas = (string?)l.NoLegalitas }).ToList()
+        }).ToListAsync(ct);
     var byNik = farmers.GroupBy(x => x.Nik!).ToDictionary(x => x.Key, x => x.First());
     var output = new List<LandBoundaryImportPreviewRow>(); var inspections = new List<LandBoundaryInspection>();
     foreach (var (rowNumber, data, parseErrors) in rows) {
