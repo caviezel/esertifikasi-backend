@@ -252,10 +252,12 @@ Baseline is absent from cycle progress because it belongs to master Lahan and ce
 
 ### Audits
 
+- Disclosure, document verification, Internal Audit, and External Audit are concurrent workspaces on an active current cycle; the frontend does not advance between them.
+- Internal and External Audit may be created and worked independently. Their completion is validated when the certificate is issued.
 - Show one Association-level audit per type and cycle.
 - For Internal Audit, manage findings and closure separately and offer XLSX template, preview, and confirmed import.
 - For External Audit, upload the audit PDF and indicate whether it contains findings; show the closure PDF control only when findings exist.
-- Block External Audit progression until Internal Audit and findings close.
+- Block certificate issuance until both audits and their findings satisfy the completion rules.
 
 ### Certificate
 

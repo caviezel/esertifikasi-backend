@@ -14,9 +14,10 @@ internal static class MonitoringModelConfiguration {
     });
     modelBuilder.Entity<MonitoringSubmission>(e => {
       e.ToTable("MonitoringSubmission", t => t.HasCheckConstraint("CK_MonitoringSubmission_Period", "\"PeriodEnd\" >= \"PeriodStart\""));
+      e.Property(x => x.Version).IsConcurrencyToken(); e.HasQueryFilter(x => !x.IsDeleted && !x.Poktan.IsDeleted && !x.Association.IsDeleted);
       e.HasKey(x => x.Id); e.Property(x => x.Summary).HasMaxLength(4000); e.Property(x => x.ReopenReason).HasMaxLength(2000);
       e.Property(x => x.PreparedByName).HasMaxLength(255); e.Property(x => x.AcknowledgedByName).HasMaxLength(255);
-      e.HasIndex(x => new { x.PoktanId, x.Type, x.PeriodStart, x.PeriodEnd }).IsUnique();
+      e.HasIndex(x => new { x.PoktanId, x.Type, x.PeriodStart, x.PeriodEnd }).IsUnique().HasFilter("\"IsDeleted\" = false");
       e.HasOne(x => x.Association).WithMany().HasForeignKey(x => x.AssociationId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne(x => x.Poktan).WithMany().HasForeignKey(x => x.PoktanId).OnDelete(DeleteBehavior.Restrict);
       e.HasOne(x => x.CreatedByUser).WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict);
@@ -66,11 +67,11 @@ internal static class MonitoringModelConfiguration {
     Row<PlantDiseaseInspection, PlantDiseaseMonitoring>(modelBuilder, "PlantDiseaseInspection", x => x.MonitoringSubmissionId, x => x.Inspections);
     Row<PestInspection, PestMonitoring>(modelBuilder, "PestInspection", x => x.MonitoringSubmissionId, x => x.Inspections);
 
-    modelBuilder.Entity<FirstAidKitInspection>(e => { e.ToTable("FirstAidKitInspection"); e.Property(x => x.Location).HasMaxLength(500); e.Property(x => x.Notes).HasMaxLength(2000); e.HasOne<FirstAidKitMonitoring>().WithMany(x => x.Inspections).HasForeignKey(x => x.MonitoringSubmissionId).OnDelete(DeleteBehavior.Cascade); });
+    modelBuilder.Entity<FirstAidKitInspection>(e => { e.ToTable("FirstAidKitInspection"); e.HasQueryFilter(x => !x.IsDeleted); e.HasOne<FirstAidLocation>().WithMany().HasForeignKey(x => x.LocationId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.Location).HasMaxLength(500); e.Property(x => x.Notes).HasMaxLength(2000); e.HasOne<FirstAidKitMonitoring>().WithMany(x => x.Inspections).HasForeignKey(x => x.MonitoringSubmissionId).OnDelete(DeleteBehavior.Cascade); });
     modelBuilder.Entity<FirstAidKitItemInspection>(e => { e.ToTable("FirstAidKitItemInspection"); e.Property(x => x.ItemName).HasMaxLength(255); e.HasOne<FirstAidKitInspection>().WithMany(x => x.Items).HasForeignKey(x => x.FirstAidKitInspectionId).OnDelete(DeleteBehavior.Cascade); });
     modelBuilder.Entity<WoodyPlantObservation>(e => { e.ToTable("WoodyPlantObservation"); e.Property(x => x.TreeName).HasMaxLength(255); e.HasOne<WoodyPlantInspection>().WithMany(x => x.Observations).HasForeignKey(x => x.WoodyPlantInspectionId).OnDelete(DeleteBehavior.Cascade); });
     modelBuilder.Entity<PpeItemInspection>(e => { e.ToTable("PpeItemInspection"); e.Property(x => x.ItemName).HasMaxLength(255); e.HasOne<PpeInspection>().WithMany(x => x.Items).HasForeignKey(x => x.PpeInspectionId).OnDelete(DeleteBehavior.Cascade); });
-    modelBuilder.Entity<MemberComplaint>(e => { e.ToTable("MemberComplaint"); e.Property(x => x.ComplaintType).HasMaxLength(255); e.Property(x => x.Description).HasMaxLength(4000); e.HasOne<MemberComplaintMonitoring>().WithMany(x => x.Complaints).HasForeignKey(x => x.MonitoringSubmissionId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Petani).WithMany().HasForeignKey(x => x.PetaniId).OnDelete(DeleteBehavior.Restrict); });
+    modelBuilder.Entity<MemberComplaint>(e => { e.ToTable("MemberComplaint"); e.HasQueryFilter(x => !x.IsDeleted); e.HasOne<Lahan>().WithMany().HasForeignKey(x => x.LahanId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.ComplaintType).HasMaxLength(255); e.Property(x => x.Description).HasMaxLength(4000); e.HasOne<MemberComplaintMonitoring>().WithMany(x => x.Complaints).HasForeignKey(x => x.MonitoringSubmissionId).OnDelete(DeleteBehavior.Cascade); e.HasOne(x => x.Petani).WithMany().HasForeignKey(x => x.PetaniId).OnDelete(DeleteBehavior.Restrict); });
   }
 
   private static void Detail<T>(ModelBuilder modelBuilder, MonitoringType _) where T : MonitoringDetailBase {
@@ -82,7 +83,7 @@ internal static class MonitoringModelConfiguration {
       System.Linq.Expressions.Expression<Func<TDetail, IEnumerable<TRow>?>> navigation)
       where TRow : FarmerLandMonitoringRow where TDetail : MonitoringDetailBase {
     modelBuilder.Entity<TRow>(e => {
-      e.ToTable(table); e.HasKey(x => x.Id); e.Property(x => x.FarmerNameSnapshot).HasMaxLength(255); e.Property(x => x.NikSnapshot).HasMaxLength(16);
+      e.ToTable(table); e.HasQueryFilter(x => !x.IsDeleted); e.HasKey(x => x.Id); e.Property(x => x.FarmerNameSnapshot).HasMaxLength(255); e.Property(x => x.NikSnapshot).HasMaxLength(16);
       e.Property(x => x.LandLegalNumberSnapshot).HasMaxLength(255); e.Property(x => x.LandAreaSnapshot).HasPrecision(18, 2); e.Property(x => x.Notes).HasMaxLength(2000); e.Property(x => x.FollowUp).HasMaxLength(2000);
       e.HasOne<TDetail>().WithMany(navigation).HasForeignKey(foreignKey).OnDelete(DeleteBehavior.Cascade);
       e.HasOne(x => x.Petani).WithMany().HasForeignKey(x => x.PetaniId).OnDelete(DeleteBehavior.Restrict);

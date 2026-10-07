@@ -15,7 +15,8 @@ public sealed class MonitoringService {
   public MonitoringService(AppDbContext db, AccessService access) { _db = db; _access = access; }
 
   public async Task<bool> CanViewAsync(System.Security.Claims.ClaimsPrincipal user, MonitoringSubmission row, CancellationToken ct) {
-    if (await _access.CanAccessAssociationAsync(user, row.AssociationId, ct)) return true;
+    if (row.Type == MonitoringType.MemberComplaint) return await CanReopenAsync(user, row.AssociationId, ct);
+    if (await CanManageAsync(user, row.PoktanId, ct)) return true;
     var userId = AccessService.UserId(user);
     return userId is not null && await _db.Petani.AnyAsync(x => x.ApplicationUserId == userId && x.PoktanId == row.PoktanId, ct);
   }
@@ -41,7 +42,7 @@ public sealed class MonitoringService {
     if (await _db.MonitoringSubmissions.AnyAsync(x => x.PoktanId == request.PoktanId && x.Type == type
         && x.PeriodStart <= request.PeriodEnd && x.PeriodEnd >= request.PeriodStart, ct))
       throw new MonitoringValidationException("Periode monitoring bertumpang tindih dengan submission yang sudah ada.");
-    ValidatePeriod(type, request.PeriodStart, request.PeriodEnd);
+    await ValidateEffectivePeriodAsync(type, request.PeriodStart, request.PeriodEnd, ct);
     return new MonitoringSubmission { Id = Guid.NewGuid(), AssociationId = poktan.AssociationId, PoktanId = request.PoktanId,
       Type = type, Group = (await EffectiveDefinitionAsync(type, ct)).Group, PeriodStart = request.PeriodStart, PeriodEnd = request.PeriodEnd,
       Summary = request.Summary, PreparedByName = request.PreparedByName, AcknowledgedByName = request.AcknowledgedByName,
@@ -52,7 +53,14 @@ public sealed class MonitoringService {
     foreach (var row in rows) {
       row.Id = row.Id == Guid.Empty ? Guid.NewGuid() : row.Id;
       SetSubmissionId(row, submissionId);
-      if (row.PetaniId is null && row.LahanId is null) continue;
+      if (row.PetaniId is null && row.LahanId is null) throw new MonitoringValidationException("Petani atau lahan wajib.");
+      var header = await _db.MonitoringSubmissions.AsNoTracking().SingleOrDefaultAsync(x => x.Id == submissionId, ct);
+      if (row.ObservedOn == default || header is not null && (row.ObservedOn < header.PeriodStart || row.ObservedOn > header.PeriodEnd)) throw new MonitoringValidationException("Tanggal monitoring di luar periode.");
+      row.ObservationId = row.ObservationId == Guid.Empty ? Guid.NewGuid() : row.ObservationId;
+      if (row is LandBoundaryInspection boundary) { boundary.InstallationYear ??= boundary.InstalledOn?.Year; if (boundary.InstallationYear is < 1900 or > 9999 || boundary.MarkerCount < 0 || !Enum.IsDefined(boundary.Condition)) throw new MonitoringValidationException("Data patok tidak valid."); }
+      if (row is FireIncident fire && (fire.IncidentDate == default || fire.IncidentDate > row.ObservedOn || !Enum.IsDefined(fire.Severity) || string.IsNullOrWhiteSpace(fire.Chronology))) throw new MonitoringValidationException("Tanggal/kronologi/kategori kebakaran tidak valid.");
+      if (row is WorkplaceAccidentIncident accident && (accident.IncidentDate == default || accident.IncidentDate > row.ObservedOn || accident.CaseCount < 1 || !Enum.IsDefined(accident.Category) || string.IsNullOrWhiteSpace(accident.Chronology))) throw new MonitoringValidationException("Data kecelakaan tidak valid.");
+      if (row is PestInspection pest && (!Enum.IsDefined(pest.Severity) || pest.ObservedDensity < 0)) throw new MonitoringValidationException("Data hama tidak valid.");
       var identity = await _db.Lahan.Where(x => x.Id == row.LahanId && x.Petani.PoktanId == poktanId)
           .Select(x => new { PetaniId = (Guid?)x.PetaniId, x.Petani.Nama, x.Petani.Nik, x.NoLegalitas, Area = x.LuasLegalitas }).SingleOrDefaultAsync(ct);
       if (row.LahanId is not null && identity is null) throw new MonitoringValidationException("Lahan tidak berada dalam Poktan submission.");
@@ -67,6 +75,16 @@ public sealed class MonitoringService {
   }
 
   private static void SetSubmissionId(FarmerLandMonitoringRow row, Guid id) => row.GetType().GetProperty("MonitoringSubmissionId")!.SetValue(row, id);
+
+  public async Task ValidateEffectivePeriodAsync(MonitoringType type, DateOnly start, DateOnly end, CancellationToken ct) {
+    var definition = await EffectiveDefinitionAsync(type, ct);
+    if (!definition.IsActive) throw new MonitoringValidationException("Jenis monitoring tidak aktif.");
+    if (start == default || end < start || start.Year != end.Year) throw new MonitoringValidationException("Periode tidak valid.");
+    bool valid = definition.Frequency == MonitoringFrequency.SemiAnnual
+      ? start.Month == 1 && start.Day == 1 && end.Month == 6 && end.Day == 30 || start.Month == 7 && start.Day == 1 && end.Month == 12 && end.Day == 31
+      : start.Month == 1 && start.Day == 1 && end.Month == 12 && end.Day == 31;
+    if (!valid) throw new MonitoringValidationException("Periode tidak sesuai frekuensi monitoring.");
+  }
 
   public static void ValidatePeriod(MonitoringType type, DateOnly start, DateOnly end) {
     if (start.Year != end.Year) throw new MonitoringValidationException("Periode harus berada dalam tahun kalender yang sama.");

@@ -1,6 +1,9 @@
 namespace Esertifikasi.Api.Domain.Entities;
 
 public sealed class MonitoringSubmission {
+  public Guid Version { get; set; } = Guid.NewGuid();
+  public bool IsDeleted { get; set; }
+  public DateTimeOffset? DeletedAt { get; set; }
   public Guid Id { get; set; }
   public Guid AssociationId { get; set; }
   public Association Association { get; set; } = null!;
@@ -79,6 +82,7 @@ public abstract class MonitoringDetailBase {
 }
 
 public abstract class FarmerLandMonitoringRow {
+  public bool IsDeleted { get; set; }
   public Guid Id { get; set; }
   public Guid? PetaniId { get; set; }
   public Petani? Petani { get; set; }
@@ -88,13 +92,14 @@ public abstract class FarmerLandMonitoringRow {
   public string? NikSnapshot { get; set; }
   public string? LandLegalNumberSnapshot { get; set; }
   public decimal? LandAreaSnapshot { get; set; }
+  public Guid ObservationId { get; set; }
   public DateOnly ObservedOn { get; set; }
   public string? Notes { get; set; }
   public string? FollowUp { get; set; }
 }
 
 public sealed class LandBoundaryMonitoring : MonitoringDetailBase { public ICollection<LandBoundaryInspection> Inspections { get; set; } = new List<LandBoundaryInspection>(); }
-public sealed class LandBoundaryInspection : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public DateOnly? InstalledOn { get; set; } public int MarkerCount { get; set; } public ItemCondition Condition { get; set; } }
+public sealed class LandBoundaryInspection : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public DateOnly? InstalledOn { get; set; } public int? InstallationYear { get; set; } public int MarkerCount { get; set; } public ItemCondition Condition { get; set; } }
 
 public sealed class TurneraMonitoring : MonitoringDetailBase { public ICollection<TurneraInspection> Inspections { get; set; } = new List<TurneraInspection>(); }
 public sealed class TurneraInspection : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public TurneraCondition Condition { get; set; } public string? Description { get; set; } }
@@ -107,7 +112,7 @@ public sealed class WoodyPlantInspection : FarmerLandMonitoringRow { public Guid
 public sealed class WoodyPlantObservation { public Guid Id { get; set; } public Guid WoodyPlantInspectionId { get; set; } public string TreeName { get; set; } = string.Empty; public int Quantity { get; set; } public decimal? HeightCentimeters { get; set; } public string? DamageSymptoms { get; set; } public string? Remarks { get; set; } }
 
 public sealed class FirstAidKitMonitoring : MonitoringDetailBase { public ICollection<FirstAidKitInspection> Inspections { get; set; } = new List<FirstAidKitInspection>(); }
-public sealed class FirstAidKitInspection { public Guid Id { get; set; } public Guid MonitoringSubmissionId { get; set; } public string Location { get; set; } = string.Empty; public DateOnly ObservedOn { get; set; } public string? Notes { get; set; } public ICollection<FirstAidKitItemInspection> Items { get; set; } = new List<FirstAidKitItemInspection>(); }
+public sealed class FirstAidKitInspection { public Guid ObservationId { get; set; } public bool IsDeleted { get; set; } public Guid Id { get; set; } public Guid MonitoringSubmissionId { get; set; } public Guid? LocationId { get; set; } public string Location { get; set; } = string.Empty; public DateOnly ObservedOn { get; set; } public string? Notes { get; set; } public ICollection<FirstAidKitItemInspection> Items { get; set; } = new List<FirstAidKitItemInspection>(); }
 public sealed class FirstAidKitItemInspection { public Guid Id { get; set; } public Guid FirstAidKitInspectionId { get; set; } public Guid? ReferenceItemId { get; set; } public string ItemName { get; set; } = string.Empty; public ItemCondition Condition { get; set; } public string? Notes { get; set; } public string? FollowUp { get; set; } }
 
 public sealed class PpeMonitoring : MonitoringDetailBase { public ICollection<PpeInspection> Inspections { get; set; } = new List<PpeInspection>(); }
@@ -119,10 +124,10 @@ public sealed class HcvLocationAssessment : FarmerLandMonitoringRow { public Gui
 public sealed class ProtectedSpeciesObservation : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public Guid? ReferenceItemId { get; set; } public SpeciesKind SpeciesKind { get; set; } public string SpeciesName { get; set; } = string.Empty; public string? Description { get; set; } }
 
 public sealed class FireMonitoring : MonitoringDetailBase { public bool NoIncidents { get; set; } public string? ZeroIncidentDeclaration { get; set; } public ICollection<FireIncident> Incidents { get; set; } = new List<FireIncident>(); }
-public sealed class FireIncident : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public IncidentSeverity Severity { get; set; } public string Chronology { get; set; } = string.Empty; }
+public sealed class FireIncident : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public DateOnly IncidentDate { get; set; } public IncidentSeverity Severity { get; set; } public string Chronology { get; set; } = string.Empty; }
 
 public sealed class WorkplaceAccidentMonitoring : MonitoringDetailBase { public bool NoIncidents { get; set; } public string? ZeroIncidentDeclaration { get; set; } public ICollection<WorkplaceAccidentIncident> Incidents { get; set; } = new List<WorkplaceAccidentIncident>(); }
-public sealed class WorkplaceAccidentIncident : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public AccidentCategory Category { get; set; } public int CaseCount { get; set; } public string Chronology { get; set; } = string.Empty; }
+public sealed class WorkplaceAccidentIncident : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public DateOnly IncidentDate { get; set; } public AccidentCategory Category { get; set; } public int CaseCount { get; set; } public string Chronology { get; set; } = string.Empty; }
 
 public sealed class WeedMonitoring : MonitoringDetailBase { public ICollection<WeedInspection> Inspections { get; set; } = new List<WeedInspection>(); }
 public sealed class WeedInspection : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public Guid? ReferenceItemId { get; set; } public string WeedType { get; set; } = string.Empty; public string? Result { get; set; } public string? Treatment { get; set; } }
@@ -134,7 +139,7 @@ public sealed class PestMonitoring : MonitoringDetailBase { public ICollection<P
 public sealed class PestInspection : FarmerLandMonitoringRow { public Guid MonitoringSubmissionId { get; set; } public Guid? ReferenceItemId { get; set; } public string PestType { get; set; } = string.Empty; public PestSeverity Severity { get; set; } public decimal? ObservedDensity { get; set; } public string? DensityUnit { get; set; } public string? Treatment { get; set; } }
 
 public sealed class MemberComplaintMonitoring : MonitoringDetailBase { public bool NoComplaints { get; set; } public string? ZeroComplaintDeclaration { get; set; } public ICollection<MemberComplaint> Complaints { get; set; } = new List<MemberComplaint>(); }
-public sealed class MemberComplaint { public Guid Id { get; set; } public Guid MonitoringSubmissionId { get; set; } public Guid? PetaniId { get; set; } public Petani? Petani { get; set; } public string? FarmerNameSnapshot { get; set; } public string? NikSnapshot { get; set; } public DateOnly ReceivedOn { get; set; } public string ComplaintType { get; set; } = string.Empty; public string Description { get; set; } = string.Empty; public string? FollowUp { get; set; } public ComplaintStatus Status { get; set; } public DateOnly? ResolvedOn { get; set; } public bool IsAnonymous { get; set; } public bool IsConfidential { get; set; } }
+public sealed class MemberComplaint { public Guid ObservationId { get; set; } public bool IsDeleted { get; set; } public Guid Id { get; set; } public Guid MonitoringSubmissionId { get; set; } public Guid? PetaniId { get; set; } public Petani? Petani { get; set; } public string? FarmerNameSnapshot { get; set; } public string? NikSnapshot { get; set; } public Guid? LahanId { get; set; } public string? LandLegalNumberSnapshot { get; set; } public string? Notes { get; set; } public string? ClosureReason { get; set; } public DateOnly ReceivedOn { get; set; } public string ComplaintType { get; set; } = string.Empty; public string Description { get; set; } = string.Empty; public string? FollowUp { get; set; } public ComplaintStatus Status { get; set; } public DateOnly? ResolvedOn { get; set; } public bool IsAnonymous { get; set; } public bool IsConfidential { get; set; } }
 
 public enum MonitoringType { LandBoundaryMarker, Turnera, ChemicalBufferBoundary, WoodyPlantAndErosionControl, FirstAidKit, PersonalProtectiveEquipment, HighConservationValue, FireIncident, WorkplaceAccident, Weed, PlantDisease, Pest, MemberComplaint }
 public enum MonitoringGroup { Budidaya, Ics, Environment, OccupationalSafety, Social }
@@ -149,4 +154,4 @@ public enum SpeciesKind { Animal, Plant }
 public enum IncidentSeverity { Light, Moderate, Severe }
 public enum AccidentCategory { Insignificant, Minor, Moderate, Major, Disaster }
 public enum PestSeverity { None, Light, Moderate, Severe }
-public enum ComplaintStatus { Open, InProgress, Resolved, Rejected }
+public enum ComplaintStatus { Open, InProgress, Resolved, Rejected, Closed }

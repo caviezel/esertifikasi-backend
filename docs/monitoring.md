@@ -48,4 +48,6 @@ The old `/api/certification/monitoring` routes and `MonitoringRecord` remain tem
 
 ## Database rollout
 
-The EF model is configured, but no migration is committed. Generate and review the migration manually before deployment. In particular, keep the legacy `MonitoringRecord` table until production records have been reviewed and classified.
+The repository contains an earlier initial migration. The new association training and field-log changes and monitoring extensions intentionally have **no new migration**; generate and review one manually before deploying these changes. Keep the legacy `MonitoringRecord` and cycle training tables until historical data has been reviewed.
+
+See [frontend integration guide](operations-frontend-guide.md) and [manual migration notes](operations-migration-notes.md) for new routes, calculations, permissions, and the training backfill.

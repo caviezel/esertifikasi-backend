@@ -53,7 +53,7 @@ public sealed class AssociationController : ControllerBase {
     var isSuperAdmin = _access.IsSuperAdmin(User);
     var permissions = new CertificationCyclePermissions(
         canManageCycle, canManagePreparation, canManageCycle && isActive,
-        canManageCycle && isActive && cycle.CurrentPhase < CertificationPhase.InternalAudit,
+        canManageCycle && isActive,
         true, canManageCycle && isActive,
         true, canManagePreparation && isActive,
         true, canManagePreparation && isActive,
@@ -62,9 +62,9 @@ public sealed class AssociationController : ControllerBase {
         true, canManageInternalAudit && isActive,
         true, canManageCycle && isActive,
         true, canManageCycle && isActive,
-        canManageCycle, canManageCycle && isActive && cycle.CurrentPhase < CertificationPhase.InternalAudit,
-        true, canManagePreparation && isActive,
-        true, canManagePreparation && isActive);
+        canManageCycle, canManageCycle && isActive,
+        true, canManagePreparation || isIcsAuditor,
+        true, canManagePreparation || isIcsAuditor);
 
     return Ok(new CurrentCertificationCycleResponse(
         cycle, progress, permissions, BuildPageAvailability(cycle, permissions)));
@@ -83,13 +83,19 @@ public sealed class AssociationController : ControllerBase {
       ("training", CertificationPhase.Preparation),
       ("monitoring", CertificationPhase.Preparation)
     };
+    var parallelPages = new HashSet<string> {
+      "disclosure", "document-verification", "internal-audit", "external-audit"
+    };
     return pages.Select(page => {
-      var available = cycle.CurrentPhase >= page.Item2;
+      var isOngoing = page.Item1 is "training" or "monitoring";
+      if (isOngoing) return new CertificationPageAvailability(page.Item1, page.Item2, true, false, PageCanEdit(page.Item1, permissions));
+      var isParallel = parallelPages.Contains(page.Item1);
+      var available = isParallel || cycle.CurrentPhase >= page.Item2;
       var canEdit = available && cycle.Status == CertificationCycleStatus.Active
-          && cycle.CurrentPhase == page.Item2
+          && (isParallel || cycle.CurrentPhase == page.Item2)
           && PageCanEdit(page.Item1, permissions);
       return new CertificationPageAvailability(
-          page.Item1, page.Item2, available, cycle.CurrentPhase == page.Item2, canEdit);
+          page.Item1, page.Item2, available, isParallel || cycle.CurrentPhase == page.Item2, canEdit);
     }).ToList();
   }
 

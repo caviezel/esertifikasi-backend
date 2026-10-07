@@ -13,7 +13,7 @@ using Microsoft.EntityFrameworkCore;
 namespace Esertifikasi.Api.Controllers;
 
 [ApiController, Route("api/monitoring"), Authorize]
-public sealed class MonitoringController : ControllerBase {
+public sealed partial class MonitoringController : ControllerBase {
   private readonly AppDbContext _db;
   private readonly MonitoringService _monitoring;
   private readonly FileValidationService _fileValidation;
@@ -32,6 +32,7 @@ public sealed class MonitoringController : ControllerBase {
   [HttpPut("definitions/{type}")]
   public async Task<IActionResult> ConfigureDefinition(MonitoringType type, MonitoringDefinition request, CancellationToken ct) {
     if (!User.IsInRole(AppRoles.SuperAdmin)) return Forbid();
+    if (!Enum.IsDefined(type) || !Enum.IsDefined(request.Frequency) || !Enum.IsDefined(request.Group) || string.IsNullOrWhiteSpace(request.Name)) return ValidationProblem("Definisi tidak valid.");
     if (request.RequiredOccurrencesPerYear < 1) return ValidationProblem("RequiredOccurrencesPerYear minimal 1.");
     var row = await _db.MonitoringDefinitions.SingleOrDefaultAsync(x => x.Type == type, ct);
     if (row is null) { row = new MonitoringDefinition { Type = type }; _db.MonitoringDefinitions.Add(row); }
@@ -57,7 +58,8 @@ public sealed class MonitoringController : ControllerBase {
   [HttpGet("submissions")]
   public async Task<IActionResult> List([FromQuery] MonitoringSubmissionQuery request, CancellationToken ct) {
     if (!await CanAccessAssociationAsync(request.AssociationId, ct)) return Forbid();
-    var query = _db.MonitoringSubmissions.Where(x => x.AssociationId == request.AssociationId);
+    var userId = AccessService.UserId(User);
+    var query = _db.MonitoringSubmissions.Where(x => x.AssociationId == request.AssociationId && (User.IsInRole(AppRoles.SuperAdmin) || x.Poktan.Association.AdminAssignments.Any(a => a.UserId == userId) || x.Poktan.AdminAssignments.Any(a => a.UserId == userId) || _db.IcsAuditorAssignments.Any(a => a.UserId == userId && a.PoktanId == x.PoktanId)));
     if (request.PoktanId is not null) query = query.Where(x => x.PoktanId == request.PoktanId);
     if (request.Type is not null) query = query.Where(x => x.Type == request.Type);
     if (request.Status is not null) query = query.Where(x => x.Status == request.Status);
@@ -78,11 +80,11 @@ public sealed class MonitoringController : ControllerBase {
   public async Task<IActionResult> Get(Guid id, CancellationToken ct) {
     var header = await _db.MonitoringSubmissions.AsNoTracking().Include(x => x.FollowUps).Include(x => x.Attachments).SingleOrDefaultAsync(x => x.Id == id, ct);
     if (header is null) return NotFound(); if (!await _monitoring.CanViewAsync(User, header, ct)) return Forbid();
-    return Ok(new { Submission = header, Detail = await DetailAsync(header, ct) });
+    return Ok(new { Submission = header, Detail = await VisibleDetailAsync(header, ct) });
   }
 
   [HttpPost("land-boundaries")] public Task<IActionResult> LandBoundaries(CreateLandBoundaryMonitoringRequest r, CancellationToken ct) =>
-      Create(r, MonitoringType.LandBoundaryMarker, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new LandBoundaryMonitoring { MonitoringSubmissionId = h.Id, Inspections = r.Inspections }; }, ct);
+      Create(r, MonitoringType.LandBoundaryMarker, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); ValidateDates(r.Inspections, r); return new LandBoundaryMonitoring { MonitoringSubmissionId = h.Id, Inspections = r.Inspections }; }, ct);
   [HttpPost("turnera")] public Task<IActionResult> Turnera(CreateTurneraMonitoringRequest r, CancellationToken ct) =>
       Create(r, MonitoringType.Turnera, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new TurneraMonitoring { MonitoringSubmissionId = h.Id, Inspections = r.Inspections }; }, ct);
   [HttpPost("chemical-buffers")] public Task<IActionResult> ChemicalBuffers(CreateChemicalBufferMonitoringRequest r, CancellationToken ct) =>
@@ -106,9 +108,9 @@ public sealed class MonitoringController : ControllerBase {
   [HttpPost("pests")] public Task<IActionResult> Pests(CreatePestMonitoringRequest r, CancellationToken ct) =>
       Create(r, MonitoringType.Pest, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new PestMonitoring { MonitoringSubmissionId = h.Id, Inspections = r.Inspections }; }, ct);
   [HttpPost("member-complaints")] public Task<IActionResult> Complaints(CreateMemberComplaintMonitoringRequest r, CancellationToken ct) =>
-      Create(r, MonitoringType.MemberComplaint, async h => { ValidateZero(r.NoComplaints, r.Complaints.Count, "pengaduan"); foreach (var x in r.Complaints) { x.Id = Guid.NewGuid(); x.MonitoringSubmissionId = h.Id; if (x.PetaniId is not null) { var p = await _db.Petani.Where(y => y.Id == x.PetaniId && y.PoktanId == h.PoktanId).Select(y => new { y.Nama, y.Nik }).SingleOrDefaultAsync(ct) ?? throw new MonitoringValidationException("Petani pengaduan tidak berada dalam Poktan submission."); x.FarmerNameSnapshot = p.Nama; x.NikSnapshot = p.Nik; x.Petani = null; } } return new MemberComplaintMonitoring { MonitoringSubmissionId = h.Id, NoComplaints = r.NoComplaints, ZeroComplaintDeclaration = r.ZeroComplaintDeclaration, Complaints = r.Complaints }; }, ct);
+      Create(r, MonitoringType.MemberComplaint, async h => { ValidateZero(r.NoComplaints, r.Complaints.Count, "pengaduan"); await PrepareComplaintsAsync(r.Complaints, h, ct); return new MemberComplaintMonitoring { MonitoringSubmissionId = h.Id, NoComplaints = r.NoComplaints, ZeroComplaintDeclaration = r.ZeroComplaintDeclaration, Complaints = r.Complaints }; }, ct);
 
-  [HttpPut("land-boundaries/{id:guid}")] public Task<IActionResult> UpdateLand(Guid id, CreateLandBoundaryMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.LandBoundaryMarker, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new LandBoundaryMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
+  [HttpPut("land-boundaries/{id:guid}")] public Task<IActionResult> UpdateLand(Guid id, CreateLandBoundaryMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.LandBoundaryMarker, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); ValidateDates(r.Inspections, r); return new LandBoundaryMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
   [HttpPut("turnera/{id:guid}")] public Task<IActionResult> UpdateTurnera(Guid id, CreateTurneraMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.Turnera, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new TurneraMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
   [HttpPut("chemical-buffers/{id:guid}")] public Task<IActionResult> UpdateChemical(Guid id, CreateChemicalBufferMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.ChemicalBufferBoundary, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new ChemicalBufferMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
   [HttpPut("woody-plants/{id:guid}")] public Task<IActionResult> UpdateWoody(Guid id, CreateWoodyPlantMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.WoodyPlantAndErosionControl, async h => { foreach (var x in r.Inspections) foreach (var y in x.Observations) y.Id = Guid.NewGuid(); await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new WoodyPlantMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
@@ -120,27 +122,27 @@ public sealed class MonitoringController : ControllerBase {
   [HttpPut("weeds/{id:guid}")] public Task<IActionResult> UpdateWeed(Guid id, CreateWeedMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.Weed, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new WeedMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
   [HttpPut("plant-diseases/{id:guid}")] public Task<IActionResult> UpdateDisease(Guid id, CreatePlantDiseaseMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.PlantDisease, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new PlantDiseaseMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
   [HttpPut("pests/{id:guid}")] public Task<IActionResult> UpdatePest(Guid id, CreatePestMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.Pest, async h => { await _monitoring.PrepareRowsAsync(r.Inspections, h.PoktanId, h.Id, ct); return new PestMonitoring { MonitoringSubmissionId = id, Inspections = r.Inspections }; }, ct);
-  [HttpPut("member-complaints/{id:guid}")] public Task<IActionResult> UpdateComplaint(Guid id, CreateMemberComplaintMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.MemberComplaint, async h => { ValidateZero(r.NoComplaints, r.Complaints.Count, "pengaduan"); foreach (var x in r.Complaints) { x.Id = Guid.NewGuid(); x.MonitoringSubmissionId = id; } return await Task.FromResult(new MemberComplaintMonitoring { MonitoringSubmissionId = id, NoComplaints = r.NoComplaints, ZeroComplaintDeclaration = r.ZeroComplaintDeclaration, Complaints = r.Complaints }); }, ct);
+  [HttpPut("member-complaints/{id:guid}")] public Task<IActionResult> UpdateComplaint(Guid id, CreateMemberComplaintMonitoringRequest r, CancellationToken ct) => Replace(id, r, MonitoringType.MemberComplaint, async h => { if (!await _monitoring.CanReopenAsync(User, h.AssociationId, ct)) throw new UnauthorizedAccessException(); ValidateZero(r.NoComplaints, r.Complaints.Count, "pengaduan"); await PrepareComplaintsAsync(r.Complaints, h, ct); return new MemberComplaintMonitoring { MonitoringSubmissionId = id, NoComplaints = r.NoComplaints, ZeroComplaintDeclaration = r.ZeroComplaintDeclaration, Complaints = r.Complaints }; }, ct);
 
   [HttpPost("submissions/{id:guid}/finalize")]
   public async Task<IActionResult> Finalize(Guid id, CancellationToken ct) {
     var row = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound();
     if (!await _monitoring.CanFinalizeAsync(User, row.PoktanId, ct)) return Forbid(); if (row.Status == MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Submission sudah final." });
-    await ValidateCompleteAsync(row, ct); row.Status = MonitoringSubmissionStatus.Finalized; row.FinalizedByUserId = AccessService.UserId(User); row.FinalizedAt = DateTimeOffset.UtcNow; await _db.SaveChangesAsync(ct); return NoContent();
+    await ValidateCompleteAsync(row, ct); row.Version = Guid.NewGuid(); row.Status = MonitoringSubmissionStatus.Finalized; row.FinalizedByUserId = AccessService.UserId(User); row.FinalizedAt = DateTimeOffset.UtcNow; await _db.SaveChangesAsync(ct); return NoContent();
   }
 
   [HttpPost("submissions/{id:guid}/reopen")]
   public async Task<IActionResult> Reopen(Guid id, ReopenMonitoringRequest request, CancellationToken ct) {
     var row = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound();
     if (!await _monitoring.CanReopenAsync(User, row.AssociationId, ct)) return Forbid(); if (row.Status != MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Hanya submission final yang dapat dibuka kembali." });
-    row.Status = MonitoringSubmissionStatus.Reopened; row.ReopenedByUserId = AccessService.UserId(User); row.ReopenedAt = DateTimeOffset.UtcNow; row.ReopenReason = request.Reason.Trim(); await _db.SaveChangesAsync(ct); return NoContent();
+    row.Version = Guid.NewGuid(); row.Status = MonitoringSubmissionStatus.Reopened; row.ReopenedByUserId = AccessService.UserId(User); row.ReopenedAt = DateTimeOffset.UtcNow; row.ReopenReason = request.Reason.Trim(); await _db.SaveChangesAsync(ct); return NoContent();
   }
 
   [HttpDelete("submissions/{id:guid}")]
   public async Task<IActionResult> Delete(Guid id, CancellationToken ct) {
     var row = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound();
     if (!await _monitoring.CanManageAsync(User, row.PoktanId, ct)) return Forbid(); if (row.Status == MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Submission final tidak dapat dihapus." });
-    _db.Remove(row); await _db.SaveChangesAsync(ct); return NoContent();
+    row.Version = Guid.NewGuid(); row.IsDeleted = true; row.DeletedAt = DateTimeOffset.UtcNow; await _db.SaveChangesAsync(ct); return NoContent();
   }
 
   [HttpGet("compliance")]
@@ -149,8 +151,8 @@ public sealed class MonitoringController : ControllerBase {
     var query = _db.MonitoringSubmissions.Where(x => x.AssociationId == associationId && x.PeriodStart.Year == year && x.Status == MonitoringSubmissionStatus.Finalized);
     if (poktanId is not null) query = query.Where(x => x.PoktanId == poktanId);
     var counts = await query.GroupBy(x => x.Type).Select(x => new { x.Key, Count = x.Count() }).ToDictionaryAsync(x => x.Key, x => x.Count, ct);
-    var configured = await _db.MonitoringDefinitions.AsNoTracking().Where(x => x.IsActive).ToDictionaryAsync(x => x.Type, ct);
-    return Ok(Enum.GetValues<MonitoringType>().Select(type => { var d = configured.GetValueOrDefault(type) ?? MonitoringService.Definition(type); var complete = counts.GetValueOrDefault(type); return new MonitoringComplianceItem(type, d.Name, d.Frequency, d.RequiredOccurrencesPerYear, complete, Math.Max(0, d.RequiredOccurrencesPerYear - complete), complete >= d.RequiredOccurrencesPerYear ? "Complete" : "Incomplete"); }));
+    var configured = await _db.MonitoringDefinitions.AsNoTracking().ToDictionaryAsync(x => x.Type, ct);
+    return Ok(Enum.GetValues<MonitoringType>().Where(type => !configured.TryGetValue(type, out var effective) || effective.IsActive).Select(type => { var d = configured.GetValueOrDefault(type) ?? MonitoringService.Definition(type); var complete = counts.GetValueOrDefault(type); return new MonitoringComplianceItem(type, d.Name, d.Frequency, d.RequiredOccurrencesPerYear, complete, Math.Max(0, d.RequiredOccurrencesPerYear - complete), complete >= d.RequiredOccurrencesPerYear ? "Complete" : "Incomplete"); }));
   }
 
   [HttpPost("submissions/{id:guid}/follow-ups")]
@@ -171,6 +173,7 @@ public sealed class MonitoringController : ControllerBase {
     var row = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound(); if (!await _monitoring.CanManageAsync(User, row.PoktanId, ct)) return Forbid(); if (row.Status == MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Buka kembali submission sebelum menambah lampiran." });
     var type = new DocumentType { AllowedExtensions = ".pdf,.jpg,.jpeg,.png", MaximumFileSize = 10 * 1024 * 1024 };
     await using var validated = await _fileValidation.ValidateAsync(file, type, ct); var key = await _storage.SaveAsync(validated.Content, validated.Extension, ct);
+    row.Version = Guid.NewGuid();
     var attachment = new MonitoringAttachment { Id = Guid.NewGuid(), MonitoringSubmissionId = id, StorageKey = key, OriginalFileName = validated.OriginalFileName, ContentType = validated.ContentType, FileExtension = validated.Extension, FileSize = validated.Size, Sha256Hash = validated.Sha256Hash, UploadedByUserId = AccessService.UserId(User)!.Value };
     _db.MonitoringAttachments.Add(attachment); await _db.SaveChangesAsync(ct); return Created($"/api/monitoring/submissions/{id}/attachments/{attachment.Id}", attachment);
   }
@@ -185,13 +188,13 @@ public sealed class MonitoringController : ControllerBase {
   public async Task<IActionResult> DeleteAttachment(Guid id, Guid attachmentId, CancellationToken ct) {
     var row = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound(); if (!await _monitoring.CanManageAsync(User, row.PoktanId, ct)) return Forbid(); if (row.Status == MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Buka kembali submission sebelum menghapus lampiran." });
     var item = await _db.MonitoringAttachments.SingleOrDefaultAsync(x => x.Id == attachmentId && x.MonitoringSubmissionId == id, ct); if (item is null) return NotFound();
-    _db.Remove(item); await _db.SaveChangesAsync(ct); await _storage.DeleteAsync(item.StorageKey, ct); return NoContent();
+    row.Version = Guid.NewGuid(); _db.Remove(item); await _db.SaveChangesAsync(ct); await _storage.DeleteAsync(item.StorageKey, ct); return NoContent();
   }
 
   [HttpGet("submissions/{id:guid}/export")]
   public async Task<IActionResult> Export(Guid id, CancellationToken ct) {
     var row = await _db.MonitoringSubmissions.Include(x => x.Poktan).SingleOrDefaultAsync(x => x.Id == id, ct); if (row is null) return NotFound(); if (!await _monitoring.CanViewAsync(User, row, ct)) return Forbid();
-    var detail = await DetailAsync(row, ct);
+    var detail = await VisibleDetailAsync(row, ct);
     var values = new List<string[]> { new[] { $"MICS {(int)row.Type + 1}", MonitoringService.Definition(row.Type).Name }, new[] { "Poktan", row.Poktan.Nama }, new[] { "Periode", $"{row.PeriodStart:yyyy-MM-dd} - {row.PeriodEnd:yyyy-MM-dd}" }, new[] { "Status", row.Status.ToString() }, new[] { "Ringkasan", row.Summary ?? "" }, Array.Empty<string>() };
     values.AddRange(ExportRows(detail));
     return File(CreateXlsx(values), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"MICS-{(int)row.Type + 1}-{row.PeriodStart.Year}.xlsx");
@@ -261,13 +264,14 @@ public sealed class MonitoringController : ControllerBase {
   }
 
   private async Task<IActionResult> Create<T>(CreateMonitoringSubmissionRequest request, MonitoringType type, Func<MonitoringSubmission, Task<T>> detailFactory, CancellationToken ct) where T : class {
-    var header = await _monitoring.CreateHeaderAsync(request, type, User, ct); var detail = await detailFactory(header); _db.MonitoringSubmissions.Add(header); _db.Add(detail); await _db.SaveChangesAsync(ct); return Created($"/api/monitoring/submissions/{header.Id}", new { header.Id, header.Type, header.Status });
+    var header = await _monitoring.CreateHeaderAsync(request, type, User, ct); var detail = await detailFactory(header); await ValidateDetailAsync(header, detail, ct); _db.MonitoringSubmissions.Add(header); _db.Add(detail); await _db.SaveChangesAsync(ct); return Created($"/api/monitoring/submissions/{header.Id}", new { header.Id, header.Type, header.Status });
   }
 
   private async Task<IActionResult> Replace<T>(Guid id, CreateMonitoringSubmissionRequest request, MonitoringType type, Func<MonitoringSubmission, Task<T>> detailFactory, CancellationToken ct) where T : class {
     var header = await _db.MonitoringSubmissions.SingleOrDefaultAsync(x => x.Id == id && x.Type == type, ct); if (header is null) return NotFound(); if (!await _monitoring.CanManageAsync(User, header.PoktanId, ct)) return Forbid(); if (header.Status == MonitoringSubmissionStatus.Finalized) return Conflict(new { message = "Submission final harus dibuka kembali sebelum diubah." }); if (request.PoktanId != header.PoktanId) return ValidationProblem("Poktan tidak dapat diubah.");
-    MonitoringService.ValidatePeriod(type, request.PeriodStart, request.PeriodEnd); if (await _db.MonitoringSubmissions.AnyAsync(x => x.Id != id && x.PoktanId == header.PoktanId && x.Type == type && x.PeriodStart <= request.PeriodEnd && x.PeriodEnd >= request.PeriodStart, ct)) return Conflict(new { message = "Periode bertumpang tindih." });
-    await RemoveDetailAsync(header, ct); header.PeriodStart = request.PeriodStart; header.PeriodEnd = request.PeriodEnd; header.Summary = request.Summary; header.PreparedByName = request.PreparedByName; header.AcknowledgedByName = request.AcknowledgedByName; _db.Add(await detailFactory(header)); await _db.SaveChangesAsync(ct); return NoContent();
+    await _monitoring.ValidateEffectivePeriodAsync(type, request.PeriodStart, request.PeriodEnd, ct); if (await _db.MonitoringSubmissions.AnyAsync(x => x.Id != id && x.PoktanId == header.PoktanId && x.Type == type && x.PeriodStart <= request.PeriodEnd && x.PeriodEnd >= request.PeriodStart, ct)) return Conflict(new { message = "Periode bertumpang tindih." });
+    await using var transaction = _db.Database.IsRelational() ? await _db.Database.BeginTransactionAsync(ct) : null;
+    header.Version = Guid.NewGuid(); await RemoveDetailAsync(header, ct); header.PeriodStart = request.PeriodStart; header.PeriodEnd = request.PeriodEnd; header.Summary = request.Summary; header.PreparedByName = request.PreparedByName; header.AcknowledgedByName = request.AcknowledgedByName; var detail = await detailFactory(header); await ValidateDetailAsync(header, detail, ct); _db.Add(detail); await _db.SaveChangesAsync(ct); if (transaction is not null) await transaction.CommitAsync(ct); return NoContent();
   }
 
   private async Task<object?> DetailAsync(MonitoringSubmission h, CancellationToken ct) => h.Type switch {
@@ -289,10 +293,12 @@ public sealed class MonitoringController : ControllerBase {
   private async Task RemoveDetailAsync(MonitoringSubmission h, CancellationToken ct) { var detail = await DetailAsync(h, ct); if (detail is not null) _db.Remove(detail); await _db.SaveChangesAsync(ct); }
   private async Task ValidateCompleteAsync(MonitoringSubmission h, CancellationToken ct) {
     var detail = await DetailAsync(h, ct) ?? throw new MonitoringValidationException("Detail monitoring tidak ditemukan.");
-    var count = detail switch { LandBoundaryMonitoring x => x.Inspections.Count, TurneraMonitoring x => x.Inspections.Count, ChemicalBufferMonitoring x => x.Inspections.Count, WoodyPlantMonitoring x => x.Inspections.Count, FirstAidKitMonitoring x => x.Inspections.Count(i => i.Items.Count > 0), PpeMonitoring x => x.Inspections.Count, HighConservationValueMonitoring x => x.Locations.Count, FireMonitoring x => x.NoIncidents ? 1 : x.Incidents.Count, WorkplaceAccidentMonitoring x => x.NoIncidents ? 1 : x.Incidents.Count, WeedMonitoring x => x.Inspections.Count, PlantDiseaseMonitoring x => x.Inspections.Count, PestMonitoring x => x.Inspections.Count, MemberComplaintMonitoring x => x.NoComplaints ? 1 : x.Complaints.Count, _ => 0 };
+    if (detail is MemberComplaintMonitoring confidential && confidential.Complaints.Any(c => c.IsAnonymous || c.IsConfidential) && !await _monitoring.CanReopenAsync(User, h.AssociationId, ct)) throw new UnauthorizedAccessException();
+    await ValidateDetailAsync(h, detail, ct);
+    var count = detail switch { LandBoundaryMonitoring x => x.Inspections.Count, TurneraMonitoring x => x.Inspections.Count, ChemicalBufferMonitoring x => x.Inspections.Count, WoodyPlantMonitoring x => x.Inspections.Count, FirstAidKitMonitoring x => x.Inspections.Count(i => i.Items.Count > 0), PpeMonitoring x => x.Inspections.Count, HighConservationValueMonitoring x => x.Locations.Count + x.SpeciesObservations.Count, FireMonitoring x => x.NoIncidents ? 1 : x.Incidents.Count, WorkplaceAccidentMonitoring x => x.NoIncidents ? 1 : x.Incidents.Count, WeedMonitoring x => x.Inspections.Count, PlantDiseaseMonitoring x => x.Inspections.Count, PestMonitoring x => x.Inspections.Count, MemberComplaintMonitoring x => x.NoComplaints ? 1 : x.Complaints.Count, _ => 0 };
     if (count == 0) throw new MonitoringValidationException("Submission belum memiliki data minimum untuk difinalisasi.");
   }
-  private async Task<bool> CanAccessAssociationAsync(Guid associationId, CancellationToken ct) { if (await new AccessService(_db).CanAccessAssociationAsync(User, associationId, ct)) return true; var userId = AccessService.UserId(User); return userId is not null && await _db.Petani.AnyAsync(x => x.ApplicationUserId == userId && x.Poktan.AssociationId == associationId, ct); }
+  private async Task<bool> CanAccessAssociationAsync(Guid associationId, CancellationToken ct) { if (await new OperationsAccess(_db, new AccessService(_db)).ViewAssociation(User, associationId, ct)) return true; var userId = AccessService.UserId(User); return userId is not null && await _db.Petani.AnyAsync(x => x.ApplicationUserId == userId && x.Poktan.AssociationId == associationId, ct); }
   private IQueryable<Guid> SubjectSubmissionIds(Guid? petaniId, Guid? lahanId) {
     IQueryable<Guid> From<TRow>() where TRow : FarmerLandMonitoringRow => _db.Set<TRow>()
         .Where(x => (petaniId == null || x.PetaniId == petaniId) && (lahanId == null || x.LahanId == lahanId))
@@ -327,7 +333,7 @@ public sealed class MonitoringController : ControllerBase {
   private static IEnumerable<string[]> ThreatRows(string typeHeader, IEnumerable<(FarmerLandMonitoringRow Row, string Type, string? Result, string? Treatment, string Severity)> rows) =>
       Table(new[] { "No Lahan", "Nama", "NIK", "Luas Tanah", "Tanggal", typeHeader, "Kategori", "Hasil", "Penanganan", "Keterangan" }, rows.Select(i => new[] { i.Row.LandLegalNumberSnapshot ?? "", i.Row.FarmerNameSnapshot ?? "", i.Row.NikSnapshot ?? "", i.Row.LandAreaSnapshot?.ToString() ?? "", i.Row.ObservedOn.ToString("yyyy-MM-dd"), i.Type, i.Severity, i.Result ?? "", i.Treatment ?? "", i.Row.Notes ?? "" }));
   private static IEnumerable<string[]> Table(string[] header, IEnumerable<string[]> rows) => new[] { header }.Concat(rows);
-  private static void ValidateZero(bool zero, int count, string noun) { if (zero && count > 0) throw new MonitoringValidationException($"Deklarasi tidak ada {noun} tidak boleh memiliki baris kejadian."); if (!zero && count == 0) throw new MonitoringValidationException($"Tambahkan kejadian {noun} atau pilih deklarasi nihil."); }
+  private static void ValidateZero(bool zero, int count, string noun) { if (zero && count > 0) throw new MonitoringValidationException($"Deklarasi tidak ada {noun} tidak boleh memiliki baris kejadian."); }
 
   private static byte[] CreateXlsx(IEnumerable<string[]> rows) {
     using var memory = new MemoryStream(); using (var zip = new ZipArchive(memory, ZipArchiveMode.Create, true)) {

@@ -12,20 +12,20 @@ public abstract class CreateMonitoringSubmissionRequest {
   [StringLength(255)] public string? AcknowledgedByName { get; set; }
 }
 
-public sealed class CreateLandBoundaryMonitoringRequest : CreateMonitoringSubmissionRequest { public List<LandBoundaryInspection> Inspections { get; set; } = new(); }
-public sealed class CreateTurneraMonitoringRequest : CreateMonitoringSubmissionRequest { public List<TurneraInspection> Inspections { get; set; } = new(); }
-public sealed class CreateChemicalBufferMonitoringRequest : CreateMonitoringSubmissionRequest { public List<ChemicalBufferInspection> Inspections { get; set; } = new(); }
-public sealed class CreateWoodyPlantMonitoringRequest : CreateMonitoringSubmissionRequest { public List<WoodyPlantInspection> Inspections { get; set; } = new(); }
-public sealed class CreateFirstAidKitMonitoringRequest : CreateMonitoringSubmissionRequest { public List<FirstAidKitInspection> Inspections { get; set; } = new(); }
-public sealed class CreatePpeMonitoringRequest : CreateMonitoringSubmissionRequest { public List<PpeInspection> Inspections { get; set; } = new(); }
-public sealed class CreateHighConservationValueMonitoringRequest : CreateMonitoringSubmissionRequest { public List<HcvLocationAssessment> Locations { get; set; } = new(); public List<ProtectedSpeciesObservation> SpeciesObservations { get; set; } = new(); }
+public sealed class CreateLandBoundaryMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<LandBoundaryInspection> Inspections { get; set; } = new(); }
+public sealed class CreateTurneraMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<TurneraInspection> Inspections { get; set; } = new(); }
+public sealed class CreateChemicalBufferMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<ChemicalBufferInspection> Inspections { get; set; } = new(); }
+public sealed class CreateWoodyPlantMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<WoodyPlantInspection> Inspections { get; set; } = new(); }
+public sealed class CreateFirstAidKitMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<FirstAidKitInspection> Inspections { get; set; } = new(); }
+public sealed class CreatePpeMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<PpeInspection> Inspections { get; set; } = new(); }
+public sealed class CreateHighConservationValueMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<HcvLocationAssessment> Locations { get; set; } = new(); [Required, MaxLength(1000)] public List<ProtectedSpeciesObservation> SpeciesObservations { get; set; } = new(); }
 public abstract class IncidentMonitoringRequest : CreateMonitoringSubmissionRequest { public bool NoIncidents { get; set; } [StringLength(2000)] public string? ZeroIncidentDeclaration { get; set; } }
-public sealed class CreateFireMonitoringRequest : IncidentMonitoringRequest { public List<FireIncident> Incidents { get; set; } = new(); }
-public sealed class CreateWorkplaceAccidentMonitoringRequest : IncidentMonitoringRequest { public List<WorkplaceAccidentIncident> Incidents { get; set; } = new(); }
-public sealed class CreateWeedMonitoringRequest : CreateMonitoringSubmissionRequest { public List<WeedInspection> Inspections { get; set; } = new(); }
-public sealed class CreatePlantDiseaseMonitoringRequest : CreateMonitoringSubmissionRequest { public List<PlantDiseaseInspection> Inspections { get; set; } = new(); }
-public sealed class CreatePestMonitoringRequest : CreateMonitoringSubmissionRequest { public List<PestInspection> Inspections { get; set; } = new(); }
-public sealed class CreateMemberComplaintMonitoringRequest : CreateMonitoringSubmissionRequest { public bool NoComplaints { get; set; } [StringLength(2000)] public string? ZeroComplaintDeclaration { get; set; } public List<MemberComplaint> Complaints { get; set; } = new(); }
+public sealed class CreateFireMonitoringRequest : IncidentMonitoringRequest { [Required, MaxLength(1000)] public List<FireIncident> Incidents { get; set; } = new(); }
+public sealed class CreateWorkplaceAccidentMonitoringRequest : IncidentMonitoringRequest { [Required, MaxLength(1000)] public List<WorkplaceAccidentIncident> Incidents { get; set; } = new(); }
+public sealed class CreateWeedMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<WeedInspection> Inspections { get; set; } = new(); }
+public sealed class CreatePlantDiseaseMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<PlantDiseaseInspection> Inspections { get; set; } = new(); }
+public sealed class CreatePestMonitoringRequest : CreateMonitoringSubmissionRequest { [Required, MaxLength(1000)] public List<PestInspection> Inspections { get; set; } = new(); }
+public sealed class CreateMemberComplaintMonitoringRequest : CreateMonitoringSubmissionRequest { public bool NoComplaints { get; set; } [StringLength(2000)] public string? ZeroComplaintDeclaration { get; set; } [Required, MaxLength(1000)] public List<MemberComplaint> Complaints { get; set; } = new(); }
 
 public sealed class MonitoringSubmissionQuery : PagedQuery {
   [NotEmptyGuid] public Guid AssociationId { get; set; }

@@ -277,5 +277,6 @@ public sealed class AppDbContext : IdentityDbContext<ApplicationUser, IdentityRo
     modelBuilder.ConfigureAdministrativeRegionModel();
     modelBuilder.ConfigureCertificationModel();
     modelBuilder.ConfigureMonitoringModel();
+    modelBuilder.ConfigureOperationsModel();
   }
 }

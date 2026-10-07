@@ -74,17 +74,12 @@ public sealed class CertificationActivitiesController : ControllerBase {
     if (!await _access.CanManageCertificationCycleAsync(User, cycleId, ct)) return Forbid();
     var cycle = await _db.CertificationCycles.Include(x => x.Disclosures).SingleOrDefaultAsync(x => x.Id == cycleId, ct);
     if (cycle is null) return NotFound();
+    CertificationWorkflowService.EnsureCurrent(cycle);
     if (cycle.Status != CertificationCycleStatus.Active)
       throw new CertificationWorkflowException("Siklus tidak aktif.");
     if (cycle.Disclosures.Any(x => x.Status is DisclosureStatus.Draft or DisclosureStatus.PendingSecondDisclosureApproval or DisclosureStatus.ApprovedForSecondDisclosure))
       return Conflict(new { message = "Masih ada disclosure aktif." });
     var version = cycle.Disclosures.Count + 1;
-    if (version == 1) {
-      CertificationWorkflowService.EnsurePhase(cycle, CertificationPhase.Disclosure);
-    }
-    else if (cycle.CurrentPhase is not (CertificationPhase.Disclosure or CertificationPhase.Preparation)) {
-      return Conflict(new { message = "Disclosure kedua hanya dapat diajukan sebelum audit internal dimulai." });
-    }
     var disclosure = new Disclosure {
       Id = Guid.NewGuid(), CertificationCycleId = cycleId, VersionNumber = version,
       Status = version == 1 ? DisclosureStatus.Draft : DisclosureStatus.PendingSecondDisclosureApproval,
@@ -116,7 +111,9 @@ public sealed class CertificationActivitiesController : ControllerBase {
     if (disclosure is null) {
       if (cycle.Disclosures.Any(x => x.Status == DisclosureStatus.Completed))
         return Conflict(new { message = "Disclosure lanjutan harus dibuat dan disetujui sebelum scope dapat ditambah." });
-      CertificationWorkflowService.EnsurePhase(cycle, CertificationPhase.Disclosure);
+      CertificationWorkflowService.EnsureCurrent(cycle);
+      if (cycle.Status != CertificationCycleStatus.Active)
+        throw new CertificationWorkflowException("Siklus tidak aktif.");
       disclosure = new Disclosure {
         Id = Guid.NewGuid(), CertificationCycleId = cycleId, VersionNumber = 1,
         Status = DisclosureStatus.Draft, CreatedByUserId = AccessService.UserId(User)!.Value
@@ -382,9 +379,8 @@ public sealed class CertificationActivitiesController : ControllerBase {
     var disclosure = await _db.Disclosures.Include(x => x.CertificationCycle).SingleOrDefaultAsync(x => x.Id == id, ct);
     if (disclosure is null) return NotFound();
     CertificationWorkflowService.EnsureCurrent(disclosure.CertificationCycle);
-    if (disclosure.CertificationCycle.Status != CertificationCycleStatus.Active
-        || disclosure.CertificationCycle.CurrentPhase >= CertificationPhase.InternalAudit)
-      return Conflict(new { message = "Disclosure tidak dapat ditinjau setelah audit internal dimulai atau siklus tidak aktif." });
+    if (disclosure.CertificationCycle.Status != CertificationCycleStatus.Active)
+      return Conflict(new { message = "Disclosure tidak dapat ditinjau pada siklus yang tidak aktif." });
     if (disclosure.Status != DisclosureStatus.PendingSecondDisclosureApproval)
       return Conflict(new { message = "Hanya permintaan disclosure kedua yang dapat ditinjau." });
     disclosure.Status = request.Approve ? DisclosureStatus.ApprovedForSecondDisclosure : DisclosureStatus.Rejected;
@@ -706,18 +702,14 @@ public sealed class CertificationActivitiesController : ControllerBase {
     if (!await _access.CanManageCertificationCycleAsync(User, cycleId, ct)) return Forbid();
     var cycle = await _db.CertificationCycles.Include(x => x.Audits).ThenInclude(x => x.Findings).SingleOrDefaultAsync(x => x.Id == cycleId, ct);
     if (cycle is null) return NotFound();
-    var requiredPhase = request.Type == AuditType.Internal ? CertificationPhase.InternalAudit : CertificationPhase.ExternalAudit;
-    if (cycle.CurrentPhase != requiredPhase) return Conflict(new { message = $"Siklus belum berada pada tahap {requiredPhase}." });
+    CertificationWorkflowService.EnsureCurrent(cycle);
+    if (cycle.Status != CertificationCycleStatus.Active)
+      return Conflict(new { message = "Siklus tidak aktif." });
     if (request.Type == AuditType.External && cycle.Type == CertificationCycleType.Surveillance
         && (cycle.TargetAuditStartDate is not null && request.ScheduledDate < cycle.TargetAuditStartDate
             || cycle.TargetAuditEndDate is not null && request.ScheduledDate > cycle.TargetAuditEndDate))
       return ValidationProblem("Jadwal audit surveillance harus berada 8-12 bulan setelah tanggal penerbitan sertifikat sebelumnya.");
     if (cycle.Audits.Any(x => x.Type == request.Type)) return Conflict(new { message = "Jenis audit ini sudah terdaftar." });
-    if (request.Type == AuditType.External) {
-      var internalAudit = cycle.Audits.SingleOrDefault(x => x.Type == AuditType.Internal);
-      if (internalAudit?.Status != AuditStatus.Closed || internalAudit.Findings.Any(x => x.Status != FindingStatus.Closed))
-        return Conflict(new { message = "Audit internal dan seluruh temuan harus ditutup terlebih dahulu." });
-    }
     var audit = new CertificationAudit { Id = Guid.NewGuid(), CertificationCycleId = cycleId, Type = request.Type,
       ScheduledDate = request.ScheduledDate, CreatedByUserId = AccessService.UserId(User)!.Value };
     _db.CertificationAudits.Add(audit);
@@ -983,8 +975,9 @@ public sealed class CertificationActivitiesController : ControllerBase {
     if (audit.Type != AuditType.External) return Conflict(new { message = "Hanya audit eksternal yang dapat mengunggah laporan ini." });
 
     var cycle = await _db.CertificationCycles.SingleAsync(x => x.Id == audit.CertificationCycleId, ct);
-    if (cycle.CurrentPhase != CertificationPhase.ExternalAudit)
-      return Conflict(new { message = "Siklus belum berada pada tahap audit eksternal." });
+    CertificationWorkflowService.EnsureCurrent(cycle);
+    if (cycle.Status != CertificationCycleStatus.Active)
+      return Conflict(new { message = "Siklus tidak aktif." });
 
     var expectedTypeId = await _db.DocumentTypes.Where(x => x.Code == expectedDocumentTypeCode).Select(x => (Guid?)x.Id).SingleOrDefaultAsync(ct);
     if (expectedTypeId is null || request.DocumentTypeId != expectedTypeId)
@@ -1092,7 +1085,6 @@ public sealed class CertificationActivitiesController : ControllerBase {
     _db.Certificates.Add(certificate);
     var certStep = await _db.CycleStepProgress.SingleAsync(x => x.CertificationCycleId == cycleId && x.Step == CertificationStep.CertificateIssuance, ct);
     certStep.Status = ProgressStatus.Completed; certStep.CompletedAt = DateTimeOffset.UtcNow;
-    CertificationWorkflowService.EnsurePhase(cycle, CertificationPhase.CertificateIssuance);
     if (cycle.CurrentPhase < CertificationPhase.CertificateIssuance) {
       var certBlockers = await _readiness.EvaluateAsync(cycleId, CertificationPhase.CertificateIssuance, ct);
       if (certBlockers.Count != 0) return Conflict(new { message = "Persyaratan penerbitan sertifikat belum terpenuhi.", blockers = certBlockers });

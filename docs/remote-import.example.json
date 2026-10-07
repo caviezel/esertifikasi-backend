@@ -1,0 +1,12 @@
+{
+  "RemoteImport": {
+    "Host": "",
+    "Port": 22,
+    "User": "",
+    "IdentityFile": "",
+    "RemoteTempDirectory": "/tmp",
+    "PsqlPath": "/usr/bin/psql",
+    "DatabaseName": "",
+    "DatabaseUser": ""
+  }
+}

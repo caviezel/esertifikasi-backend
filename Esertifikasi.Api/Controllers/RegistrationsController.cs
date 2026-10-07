@@ -112,8 +112,8 @@ public sealed class RegistrationsController : ControllerBase {
     await _db.SaveChangesAsync(ct);
 
     var currentCycle = await _db.CertificationCycles.SingleOrDefaultAsync(x =>
-        x.AssociationId == registration.AssociationId && x.IsCurrent && x.Status == CertificationCycleStatus.Active
-        && x.CurrentPhase < CertificationPhase.InternalAudit, ct);
+        x.AssociationId == registration.AssociationId && x.IsCurrent
+        && x.Status == CertificationCycleStatus.Active, ct);
     if (currentCycle is not null && !await _db.CertificationParticipants.AnyAsync(x =>
         x.CertificationCycleId == currentCycle.Id && x.PetaniId == petani.Id, ct)
         && (!await _db.Disclosures.AnyAsync(x => x.CertificationCycleId == currentCycle.Id && x.Status == DisclosureStatus.Completed, ct)

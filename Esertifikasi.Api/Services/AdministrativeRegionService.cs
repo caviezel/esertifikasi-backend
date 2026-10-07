@@ -14,4 +14,5 @@ public sealed class AdministrativeRegionService {
 
 public sealed class RegionImportException : Exception {
   public RegionImportException(string message) : base(message) { }
+  public RegionImportException(string message, Exception innerException) : base(message, innerException) { }
 }

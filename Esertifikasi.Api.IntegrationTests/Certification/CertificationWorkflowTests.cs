@@ -63,12 +63,44 @@ public sealed class CertificationWorkflowTests : IClassFixture<EsertifikasiWebAp
     Assert.True(disclosure.GetProperty("isAvailable").GetBoolean());
     Assert.True(disclosure.GetProperty("isCurrent").GetBoolean());
     Assert.True(disclosure.GetProperty("canEdit").GetBoolean());
+    foreach (var key in new[] { "document-verification", "internal-audit", "external-audit" }) {
+      var parallelPage = Assert.Single(pages, x => x.GetProperty("key").GetString() == key);
+      Assert.True(parallelPage.GetProperty("isAvailable").GetBoolean());
+      Assert.True(parallelPage.GetProperty("isCurrent").GetBoolean());
+      Assert.True(parallelPage.GetProperty("canEdit").GetBoolean());
+    }
 
     var verification = await client.GetAsync(
         $"/api/certification-cycles/{body.GetProperty("cycle").GetProperty("id").GetGuid()}/document-verification");
     Assert.Equal(HttpStatusCode.OK, verification.StatusCode);
     Assert.True(JsonDocument.Parse(await verification.Content.ReadAsStringAsync()).RootElement
         .TryGetProperty("summary", out _));
+  }
+
+  [Fact]
+  public async Task Audits_CanBeCreatedInParallelWithoutPhaseTransitions() {
+    using var client = _factory.CreateClient();
+    client.AuthenticateAsSuperAdmin();
+    var association = await client.PostAsJsonAsync(
+        "/api/associations", AssociationPayload($"Parallel audits {Guid.NewGuid():N}"));
+    var associationId = JsonDocument.Parse(await association.Content.ReadAsStringAsync())
+        .RootElement.GetProperty("id").GetGuid();
+    Guid cycleId;
+    using (var scope = _factory.Services.CreateScope()) {
+      var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+      cycleId = await db.CertificationCycles.Where(x => x.AssociationId == associationId)
+          .Select(x => x.Id).SingleAsync();
+    }
+
+    var internalAudit = await client.PostAsJsonAsync($"/api/certification/cycles/{cycleId}/audits", new {
+      type = AuditType.Internal, scheduledDate = DateOnly.FromDateTime(DateTime.UtcNow)
+    });
+    var externalAudit = await client.PostAsJsonAsync($"/api/certification/cycles/{cycleId}/audits", new {
+      type = AuditType.External, scheduledDate = DateOnly.FromDateTime(DateTime.UtcNow)
+    });
+
+    Assert.Equal(HttpStatusCode.Created, internalAudit.StatusCode);
+    Assert.Equal(HttpStatusCode.Created, externalAudit.StatusCode);
   }
 
   [Fact]

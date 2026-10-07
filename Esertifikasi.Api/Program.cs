@@ -16,15 +16,47 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 
 var isRegionImportCommand = args.Length > 0 && string.Equals(args[0], "import-regions", StringComparison.OrdinalIgnoreCase);
-var builder = WebApplication.CreateBuilder(isRegionImportCommand ? Array.Empty<string>() : args);
+var isRemoteRegionImportCommand = args.Length > 0 && string.Equals(args[0], "import-regions-remote", StringComparison.OrdinalIgnoreCase);
+var builder = WebApplication.CreateBuilder(isRegionImportCommand || isRemoteRegionImportCommand ? Array.Empty<string>() : args);
+// Remote import needs only dataset/configuration access, never the API's DbContext,
+// JWT setup, seeder, or a Mac-to-PostgreSQL connection.
+if (isRemoteRegionImportCommand) {
+  if (args.Length is < 2 or > 3 || (args.Length == 3 && args[2] != "--confirm")) {
+    Console.Error.WriteLine("Usage: import-regions-remote <manifest.json> [--confirm]");
+    Environment.ExitCode = 2;
+    return;
+  }
+  using var cancellation = new CancellationTokenSource();
+  ConsoleCancelEventHandler cancel = (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+  Console.CancelKeyPress += cancel;
+  try {
+    var options = builder.Configuration.GetSection(RemoteRegionImportOptions.SectionName).Get<RemoteRegionImportOptions>()
+        ?? new RemoteRegionImportOptions();
+    await new RemoteRegionImporter(new ImportProcessRunner(), new RegionSqlArtifactGenerator())
+        .RunAsync(args[1], args.Length == 3, options, Console.WriteLine, cancellation.Token);
+  }
+  catch (OperationCanceledException) {
+    Console.Error.WriteLine("Region import canceled.");
+    Environment.ExitCode = 130;
+  }
+  catch (Exception error) {
+    Console.Error.WriteLine($"Region import failed: {error.Message}");
+    Environment.ExitCode = 1;
+  }
+  finally { Console.CancelKeyPress -= cancel; }
+  return;
+}
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new InvalidOperationException("ConnectionStrings:DefaultConnection wajib dikonfigurasi.");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(connectionString, postgres =>
-        postgres.MigrationsHistoryTable(
-            DatabaseConstants.MigrationHistoryTable,
-            DatabaseConstants.Schema)));
+    options.UseNpgsql(connectionString, postgres => {
+      postgres.MigrationsHistoryTable(DatabaseConstants.MigrationHistoryTable, DatabaseConstants.Schema);
+      if (isRegionImportCommand) {
+        postgres.MaxBatchSize(100);
+        postgres.CommandTimeout(120);
+      }
+    }));
 builder.Services.AddIdentityCore<ApplicationUser>(options => {
   options.Password.RequiredLength = 10;
   options.Password.RequireNonAlphanumeric = true;
@@ -86,6 +118,7 @@ builder.Services.AddScoped<CertificationWorkflowService>();
 builder.Services.AddScoped<CertificationReadinessService>();
 builder.Services.AddScoped<CertificationProgressService>();
 builder.Services.AddScoped<MonitoringService>();
+builder.Services.AddScoped<OperationsAccess>();
 builder.Services.AddScoped<AuditFindingExcelService>();
 builder.Services.AddScoped<LandBoundaryMonitoringExcelService>();
 builder.Services.AddScoped<AdministrativeRegionService>();

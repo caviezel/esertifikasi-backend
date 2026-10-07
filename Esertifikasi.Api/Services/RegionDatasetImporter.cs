@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -6,14 +7,24 @@ using Esertifikasi.Api.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.VisualBasic.FileIO;
+using Npgsql;
 
 namespace Esertifikasi.Api.Services;
 
-public sealed class RegionDatasetImporter {
+public sealed partial class RegionDatasetImporter {
   private static readonly Regex Sha256Pattern = new("^[a-f0-9]{64}$", RegexOptions.Compiled);
+  private const int VillageBatchSize = 100;
+  private readonly TimeSpan _diagnosticDeadline;
   private readonly AppDbContext _db;
+  private readonly ILogger<RegionDatasetImporter>? _logger;
 
-  public RegionDatasetImporter(AppDbContext db) => _db = db;
+  public RegionDatasetImporter(AppDbContext db, ILogger<RegionDatasetImporter>? logger = null,
+      TimeSpan? diagnosticDeadline = null) {
+    _db = db;
+    _logger = logger;
+    _diagnosticDeadline = diagnosticDeadline ?? TimeSpan.FromSeconds(30);
+    if (_diagnosticDeadline <= TimeSpan.Zero) throw new ArgumentOutOfRangeException(nameof(diagnosticDeadline));
+  }
 
   public async Task<RegionDatasetImportResult> ImportAsync(string manifestPath, CancellationToken ct) {
     var fullManifestPath = ResolveManifestPath(manifestPath);
@@ -24,7 +35,8 @@ public sealed class RegionDatasetImporter {
     }) ?? throw new RegionImportException("Manifest tidak dapat dibaca.");
     ValidateManifest(manifest);
 
-    var previous = await _db.RegionDatasetImports.AsNoTracking().SingleOrDefaultAsync(x => x.Version == manifest.Version, ct);
+    var previous = await ObserveOperationAsync("ReadPreviousImport", "RegionDatasetImport", 0, 0, 0,
+        () => _db.RegionDatasetImports.AsNoTracking().SingleOrDefaultAsync(x => x.Version == manifest.Version, ct));
     if (previous is not null) {
       if (previous.DatasetSha256 != manifest.DatasetSha256)
         throw new RegionImportException($"Versi dataset '{manifest.Version}' sudah digunakan oleh dataset yang berbeda.");
@@ -43,29 +55,23 @@ public sealed class RegionDatasetImporter {
         new[] { "id", "code", "district_id", "name" }, ParseVillage, ct);
     ValidateHierarchy(provinces, regencies, districts, villages);
 
-    await using IDbContextTransaction? transaction = _db.Database.IsRelational()
-        ? await _db.Database.BeginTransactionAsync(ct) : null;
+    if (_db.Database.CurrentTransaction is not null)
+      throw new RegionImportException("Region import cannot run inside an existing transaction; each stage must commit independently.");
     var now = DateTimeOffset.UtcNow;
     var changed = 0;
     var autoDetectChanges = _db.ChangeTracker.AutoDetectChangesEnabled;
     _db.ChangeTracker.AutoDetectChangesEnabled = false;
     try {
+      _logger?.LogInformation("Import wilayah {Version}: {ProvinceCount} provinsi, {RegencyCount} kabupaten, {DistrictCount} kecamatan, {VillageCount} desa.", manifest.Version, provinces.Count, regencies.Count, districts.Count, villages.Count);
       changed += await UpsertProvincesAsync(provinces, manifest.GeneratedAt, now, ct);
       changed += await UpsertRegenciesAsync(regencies, manifest.GeneratedAt, now, ct);
       changed += await UpsertDistrictsAsync(districts, manifest.GeneratedAt, now, ct);
       changed += await UpsertVillagesAsync(villages, manifest.GeneratedAt, now, ct);
-      _db.RegionDatasetImports.Add(new RegionDatasetImport {
+      await CommitBatchAsync("RegionDatasetImport", new[] { new PendingWrite(new RegionDatasetImport {
         Id = Guid.NewGuid(), Version = manifest.Version, Source = manifest.Source,
         DatasetSha256 = manifest.DatasetSha256, ProvinceCount = provinces.Count, RegencyCount = regencies.Count,
         DistrictCount = districts.Count, VillageCount = villages.Count, AppliedAt = now
-      });
-      _db.ChangeTracker.DetectChanges();
-      await _db.SaveChangesAsync(ct);
-      if (transaction is not null) await transaction.CommitAsync(ct);
-    }
-    catch {
-      if (transaction is not null) await transaction.RollbackAsync(CancellationToken.None);
-      throw;
+      }, EntityState.Added) }, 1, 1, 1, ct);
     }
     finally {
       _db.ChangeTracker.AutoDetectChangesEnabled = autoDetectChanges;
@@ -75,79 +81,201 @@ public sealed class RegionDatasetImporter {
   }
 
   private async Task<int> UpsertProvincesAsync(Dictionary<long, ProvinceRow> incoming, DateTimeOffset sourceAt, DateTimeOffset now, CancellationToken ct) {
-    var existing = await _db.Provinces.ToDictionaryAsync(x => x.Id, ct);
-    var changed = DeactivateMissing(existing, incoming.Keys, now);
+    var existing = await ObserveOperationAsync("ReadExisting", "Provinces", 0, 0, incoming.Count,
+        () => _db.Provinces.AsNoTracking().ToDictionaryAsync(x => x.Id, ct));
+    var writes = new List<PendingWrite>(incoming.Count);
+    var changed = 0;
     foreach (var row in incoming.Values) {
-      if (!existing.TryGetValue(row.Id, out var entity)) {
-        entity = new Province { Id = row.Id };
-        _db.Provinces.Add(entity); changed++;
-      }
-      else if (entity.Code != row.Code || entity.Name != row.Name || !entity.IsActive) changed++;
+      ct.ThrowIfCancellationRequested();
+      var found = existing.TryGetValue(row.Id, out var entity);
+      entity ??= new Province { Id = row.Id };
+      if (!found || entity.Code != row.Code || entity.Name != row.Name || !entity.IsActive) changed++;
       entity.Code = row.Code; entity.Name = row.Name; entity.IsActive = true;
       entity.SourceUpdatedAt = sourceAt; entity.SyncedAt = now;
+      writes.Add(new PendingWrite(entity, found ? EntityState.Modified : EntityState.Added));
     }
+    var missing = PrepareDeactivations(existing, incoming.Keys, now);
+    changed += missing.Count;
+    writes.AddRange(missing);
+    await CommitBatchAsync("Provinces", writes, 1, writes.Count, writes.Count, ct);
     return changed;
   }
 
   private async Task<int> UpsertRegenciesAsync(Dictionary<long, RegencyRow> incoming, DateTimeOffset sourceAt, DateTimeOffset now, CancellationToken ct) {
-    var existing = await _db.Regencies.ToDictionaryAsync(x => x.Id, ct);
-    var changed = DeactivateMissing(existing, incoming.Keys, now);
+    var existing = await ObserveOperationAsync("ReadExisting", "Regencies", 0, 0, incoming.Count,
+        () => _db.Regencies.AsNoTracking().ToDictionaryAsync(x => x.Id, ct));
+    var writes = new List<PendingWrite>(incoming.Count);
+    var changed = 0;
     foreach (var row in incoming.Values) {
-      if (!existing.TryGetValue(row.Id, out var entity)) {
-        entity = new Regency { Id = row.Id };
-        _db.Regencies.Add(entity); changed++;
-      }
-      else if (entity.Code != row.Code || entity.Name != row.Name || entity.ProvinceId != row.ProvinceId || !entity.IsActive) changed++;
+      ct.ThrowIfCancellationRequested();
+      var found = existing.TryGetValue(row.Id, out var entity);
+      entity ??= new Regency { Id = row.Id };
+      if (!found || entity.Code != row.Code || entity.Name != row.Name || entity.ProvinceId != row.ProvinceId || !entity.IsActive) changed++;
       entity.Code = row.Code; entity.Name = row.Name; entity.ProvinceId = row.ProvinceId; entity.IsActive = true;
       entity.SourceUpdatedAt = sourceAt; entity.SyncedAt = now;
+      writes.Add(new PendingWrite(entity, found ? EntityState.Modified : EntityState.Added));
     }
+    var missing = PrepareDeactivations(existing, incoming.Keys, now);
+    changed += missing.Count;
+    writes.AddRange(missing);
+    await CommitBatchAsync("Regencies", writes, 1, writes.Count, writes.Count, ct);
     return changed;
   }
 
   private async Task<int> UpsertDistrictsAsync(Dictionary<long, DistrictRow> incoming, DateTimeOffset sourceAt, DateTimeOffset now, CancellationToken ct) {
-    var existing = await _db.Districts.ToDictionaryAsync(x => x.Id, ct);
-    var changed = DeactivateMissing(existing, incoming.Keys, now);
+    var existing = await ObserveOperationAsync("ReadExisting", "Districts", 0, 0, incoming.Count,
+        () => _db.Districts.AsNoTracking().ToDictionaryAsync(x => x.Id, ct));
+    var writes = new List<PendingWrite>(incoming.Count);
+    var changed = 0;
     foreach (var row in incoming.Values) {
-      if (!existing.TryGetValue(row.Id, out var entity)) {
-        entity = new District { Id = row.Id };
-        _db.Districts.Add(entity); changed++;
-      }
-      else if (entity.Code != row.Code || entity.Name != row.Name || entity.RegencyId != row.RegencyId || !entity.IsActive) changed++;
+      ct.ThrowIfCancellationRequested();
+      var found = existing.TryGetValue(row.Id, out var entity);
+      entity ??= new District { Id = row.Id };
+      if (!found || entity.Code != row.Code || entity.Name != row.Name || entity.RegencyId != row.RegencyId || !entity.IsActive) changed++;
       entity.Code = row.Code; entity.Name = row.Name; entity.RegencyId = row.RegencyId; entity.IsActive = true;
       entity.SourceUpdatedAt = sourceAt; entity.SyncedAt = now;
+      writes.Add(new PendingWrite(entity, found ? EntityState.Modified : EntityState.Added));
     }
+    var missing = PrepareDeactivations(existing, incoming.Keys, now);
+    changed += missing.Count;
+    writes.AddRange(missing);
+    await CommitBatchAsync("Districts", writes, 1, writes.Count, writes.Count, ct);
     return changed;
   }
 
   private async Task<int> UpsertVillagesAsync(Dictionary<long, VillageRow> incoming, DateTimeOffset sourceAt, DateTimeOffset now, CancellationToken ct) {
-    var existing = await _db.Villages.ToDictionaryAsync(x => x.Id, ct);
-    var changed = DeactivateMissing(existing, incoming.Keys, now);
+    if (_db.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+      return await BulkUpsertVillagesAsync(incoming, sourceAt, now, ct);
+    // Non-PostgreSQL providers are retained for the existing in-memory/SQLite tests.
+    var existing = await ObserveOperationAsync("ReadExisting", "Villages", 0, 0, incoming.Count,
+        () => _db.Villages.AsNoTracking().ToDictionaryAsync(x => x.Id, ct));
+    var writes = new List<PendingWrite>(incoming.Count);
+    var changed = 0;
     foreach (var row in incoming.Values) {
-      if (!existing.TryGetValue(row.Id, out var entity)) {
-        entity = new Village { Id = row.Id };
-        _db.Villages.Add(entity); changed++;
-      }
-      else if (entity.Code != row.Code || entity.Name != row.Name || entity.DistrictId != row.DistrictId || !entity.IsActive) changed++;
+      ct.ThrowIfCancellationRequested();
+      var found = existing.TryGetValue(row.Id, out var entity);
+      entity ??= new Village { Id = row.Id };
+      if (!found || entity.Code != row.Code || entity.Name != row.Name || entity.DistrictId != row.DistrictId || !entity.IsActive) changed++;
       entity.Code = row.Code; entity.Name = row.Name; entity.DistrictId = row.DistrictId; entity.IsActive = true;
       entity.SourceUpdatedAt = sourceAt; entity.SyncedAt = now;
+      writes.Add(new PendingWrite(entity, found ? EntityState.Modified : EntityState.Added));
     }
+    var missing = PrepareDeactivations(existing, incoming.Keys, now);
+    changed += missing.Count;
+    await CommitBatchesAsync("Villages", writes, ct);
+    await CommitBatchesAsync("Villages (deactivate)", missing, ct);
     return changed;
   }
 
-  private static int DeactivateMissing<TEntity>(Dictionary<long, TEntity> existing, IEnumerable<long> incomingIds, DateTimeOffset now)
-      where TEntity : class {
+  private static List<PendingWrite> PrepareDeactivations<TEntity>(Dictionary<long, TEntity> existing,
+      IEnumerable<long> incomingIds, DateTimeOffset now) where TEntity : class {
     var incoming = incomingIds.ToHashSet();
-    var changed = 0;
+    var writes = new List<PendingWrite>();
     foreach (var pair in existing.Where(x => !incoming.Contains(x.Key))) {
       switch (pair.Value) {
-        case Province x when x.IsActive: x.IsActive = false; x.SyncedAt = now; changed++; break;
-        case Regency x when x.IsActive: x.IsActive = false; x.SyncedAt = now; changed++; break;
-        case District x when x.IsActive: x.IsActive = false; x.SyncedAt = now; changed++; break;
-        case Village x when x.IsActive: x.IsActive = false; x.SyncedAt = now; changed++; break;
+        case Province x when x.IsActive: x.IsActive = false; x.SyncedAt = now; break;
+        case Regency x when x.IsActive: x.IsActive = false; x.SyncedAt = now; break;
+        case District x when x.IsActive: x.IsActive = false; x.SyncedAt = now; break;
+        case Village x when x.IsActive: x.IsActive = false; x.SyncedAt = now; break;
+        default: continue;
       }
+      writes.Add(new PendingWrite(pair.Value, EntityState.Modified));
     }
-    return changed;
+    return writes;
   }
+
+  private async Task CommitBatchesAsync(string entityType, List<PendingWrite> writes, CancellationToken ct) {
+    for (var offset = 0; offset < writes.Count; offset += VillageBatchSize) {
+      var count = Math.Min(VillageBatchSize, writes.Count - offset);
+      await CommitBatchAsync(entityType, writes.GetRange(offset, count), offset + 1, offset + count, writes.Count, ct);
+    }
+  }
+
+  private async Task CommitBatchAsync(string entityType, IReadOnlyList<PendingWrite> writes,
+      int start, int end, int total, CancellationToken ct) {
+    if (writes.Count == 0) return;
+    var batchClock = Stopwatch.StartNew();
+    void Log(string phase, string operation, long elapsed) =>
+        LogOperation(phase, operation, entityType, start, end, total, elapsed);
+    Task<T> Await<T>(string operation, Func<Task<T>> action) =>
+        ObserveOperationAsync(operation, entityType, start, end, total, action);
+    async Task AwaitVoid(string operation, Func<Task> action) =>
+        await Await(operation, async () => { await action(); return true; });
+    void Clear() {
+      Log("BEFORE", "Clear", batchClock.ElapsedMilliseconds);
+      _db.ChangeTracker.Clear();
+      Log("AFTER", "Clear", batchClock.ElapsedMilliseconds);
+    }
+    IDbContextTransaction? transaction = null;
+    try {
+      ct.ThrowIfCancellationRequested();
+      // Reads, file processing, and entity preparation happen before opening a transaction.
+      Log("BEFORE", "Attach/DetectChanges", batchClock.ElapsedMilliseconds);
+      foreach (var write in writes) _db.Entry(write.Entity).State = write.State;
+      _db.ChangeTracker.DetectChanges();
+      Log("AFTER", "Attach/DetectChanges", batchClock.ElapsedMilliseconds);
+      if (_db.Database.IsRelational()) {
+        transaction = await Await("BeginTransaction", () => _db.Database.BeginTransactionAsync(ct));
+        if (_db.Database.ProviderName == "Npgsql.EntityFrameworkCore.PostgreSQL")
+          await Await("SetLocalLockTimeout", () => _db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '10s'", ct));
+      }
+      await Await("SaveChanges", () => _db.SaveChangesAsync(ct));
+      if (transaction is not null) await AwaitVoid("Commit", () => transaction.CommitAsync(ct));
+      Clear();
+      _logger?.LogInformation("{EntityType}: {Processed}/{Total}", entityType, end, total);
+    }
+    catch (Exception importError) {
+      if (transaction is not null) {
+        try { await AwaitVoid("Rollback", () => transaction.RollbackAsync(CancellationToken.None)); }
+        catch (Exception rollbackError) {
+          _logger?.LogWarning(rollbackError, "Rollback {EntityType} batch {Start}-{End} failed; original import exception preserved.", entityType, start, end);
+        }
+      }
+      _logger?.LogError(importError, "Region import failed: {EntityType} batch {Start}-{End}/{Total}.", entityType, start, end, total);
+      if (importError is OperationCanceledException) throw;
+      var context = $"{entityType} batch {start}-{end}/{total}: ";
+      for (Exception? cause = importError; cause is not null; cause = cause.InnerException) {
+        if (cause is PostgresException { SqlState: "55P03" })
+          throw new RegionImportException(context + "Import wilayah diblokir oleh transaksi PostgreSQL lain. Selesaikan atau rollback transaksi tersebut sebelum mengulang import. Periksa pg_stat_activity dan pg_blocking_pids; penambahan timeout tidak mengatasi transaksi yang masih terbuka.", importError);
+      }
+      throw new RegionImportException(context + "Region import failed; previously committed stages and batches are retained. Retry the same manifest to complete the import.", importError);
+    }
+    finally {
+      Clear();
+      if (transaction is not null) await AwaitVoid("Dispose", () => transaction.DisposeAsync().AsTask());
+    }
+  }
+
+  // Diagnostic deadline only: never abandon an in-flight operation and race it with
+  // rollback/disposal on the same context. Existing provider timeouts remain intact.
+  private async Task<T> ObserveOperationAsync<T>(string operation, string entityType,
+      int start, int end, int total, Func<Task<T>> action, Func<T, long>? rowCount = null) {
+    var clock = Stopwatch.StartNew();
+    LogOperation("BEFORE", operation, entityType, start, end, total, 0, rows: rowCount is null ? null : 0);
+    try {
+      var pending = action();
+      try { await pending.WaitAsync(_diagnosticDeadline); }
+      catch (TimeoutException) {
+        if (!pending.IsCompleted) LogOperation("STALLED", operation, entityType, start, end, total, clock.ElapsedMilliseconds, LogLevel.Error);
+      }
+      var result = await pending;
+      LogOperation("AFTER", operation, entityType, start, end, total, clock.ElapsedMilliseconds, rows: rowCount?.Invoke(result));
+      return result;
+    }
+    catch (Exception error) {
+      LogOperation("FAILED", operation, entityType, start, end, total, clock.ElapsedMilliseconds, LogLevel.Error, error);
+      throw;
+    }
+  }
+
+  private void LogOperation(string phase, string operation, string entityType, int start,
+      int end, int total, long elapsed, LogLevel level = LogLevel.Information, Exception? error = null, long? rows = null) =>
+      _logger?.Log(level, error,
+          "{Phase} {Operation}: {EntityType} batch {Start}-{End}/{Total}; PID={ProcessId} Thread={ThreadId} UTC={UtcTimestamp:o} ElapsedMs={ElapsedMs} ContextId={ContextId} InputRows={InputRows} Rows={RowCount}",
+          phase, operation, entityType, start, end, total, Environment.ProcessId,
+          Environment.CurrentManagedThreadId, DateTimeOffset.UtcNow, elapsed, _db.ContextId, total, rows);
+
+  private sealed record PendingWrite(object Entity, EntityState State);
 
   private static async Task<Dictionary<long, T>> ReadCsvAsync<T>(string baseDirectory, RegionDatasetFile file,
       string[] expectedHeader, Func<string[], int, T> parser, CancellationToken ct) where T : IRegionRow {

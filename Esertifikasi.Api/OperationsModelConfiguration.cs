@@ -1,0 +1,26 @@
+using Esertifikasi.Api.Domain.Entities;
+using Microsoft.EntityFrameworkCore;
+namespace Esertifikasi.Api;
+internal static class OperationsModelConfiguration {
+  public static void ConfigureOperationsModel(this ModelBuilder b) {
+    b.Entity<HarvestRotation>(e => { e.ToTable("HarvestRotation"); e.HasOne(x => x.Lahan).WithMany().HasForeignKey(x => x.LahanId).OnDelete(DeleteBehavior.Restrict); e.Property(x => x.Name).HasMaxLength(255); });
+    b.Entity<FieldLog>(e => { e.ToTable("FieldLog"); e.Property(x => x.Version).IsConcurrencyToken(); e.HasQueryFilter(x => !x.IsDeleted && !x.Lahan.IsDeleted && !x.Lahan.Petani.IsDeleted && !x.Lahan.Petani.Poktan.IsDeleted && !x.Lahan.Petani.Poktan.Association.IsDeleted); e.HasOne(x => x.Lahan).WithMany().HasForeignKey(x => x.LahanId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Rotation).WithMany().HasForeignKey(x => x.RotationId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => new { x.LahanId, x.Activity, x.ActivityDate }); e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<ActivityCounter>(e => { e.ToTable("ActivityCounter"); e.HasKey(x => new { x.LahanId, x.Activity, x.Year }); e.Property(x => x.Version).IsConcurrencyToken(); e.HasOne<Lahan>().WithMany().HasForeignKey(x => x.LahanId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<AssociationTraining>(e => { e.ToTable("AssociationTraining"); e.Property(x => x.Version).IsConcurrencyToken(); e.HasQueryFilter(x => !x.IsDeleted && !x.Association.IsDeleted); e.HasOne(x => x.Association).WithMany().HasForeignKey(x => x.AssociationId).OnDelete(DeleteBehavior.Restrict); e.HasOne(x => x.Poktan).WithMany().HasForeignKey(x => x.PoktanId).OnDelete(DeleteBehavior.Restrict); e.HasIndex(x => x.LegacySessionId).IsUnique(); e.Property(x => x.Title).HasMaxLength(255); e.Property(x => x.LegacyDescription).HasMaxLength(2000); e.HasOne<ApplicationUser>().WithMany().HasForeignKey(x => x.CreatedByUserId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<AssociationTrainingDay>(e => { e.ToTable("AssociationTrainingDay"); e.HasKey(x => new { x.TrainingId, x.Date }); e.HasOne(x => x.Training).WithMany(x => x.Days).HasForeignKey(x => x.TrainingId); });
+    b.Entity<AssociationTrainingParticipant>(e => { e.ToTable("AssociationTrainingParticipant"); e.HasKey(x => new { x.TrainingId, x.PetaniId }); e.HasOne(x => x.Training).WithMany(x => x.Participants).HasForeignKey(x => x.TrainingId); e.HasOne(x => x.Petani).WithMany().HasForeignKey(x => x.PetaniId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<DailyTrainingAttendance>(e => { e.ToTable("DailyTrainingAttendance"); e.HasKey(x => new { x.TrainingId, x.PetaniId, x.Date }); e.HasOne(x => x.Training).WithMany().HasForeignKey(x => x.TrainingId); e.HasOne<AssociationTrainingDay>().WithMany().HasForeignKey(x => new { x.TrainingId, x.Date }).OnDelete(DeleteBehavior.Restrict); e.HasOne<AssociationTrainingParticipant>().WithMany().HasForeignKey(x => new { x.TrainingId, x.PetaniId }).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<TrainingTopic>(e => { e.ToTable("TrainingTopic"); e.Property(x => x.Name).HasMaxLength(255); e.HasIndex(x => new { x.AssociationId, x.Name }).IsUnique(); e.HasOne<Association>().WithMany().HasForeignKey(x => x.AssociationId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<TrainingPackage>(e => { e.ToTable("TrainingPackage"); e.Property(x => x.Name).HasMaxLength(255); });
+    b.Entity<TrainingPackageTopic>(e => { e.ToTable("TrainingPackageTopic"); e.HasKey(x => new { x.PackageId, x.TopicId }); e.HasOne(x => x.Package).WithMany(x => x.Topics).HasForeignKey(x => x.PackageId); e.HasOne(x => x.Topic).WithMany().HasForeignKey(x => x.TopicId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<AssociationTrainingTopic>(e => { e.ToTable("AssociationTrainingTopic"); e.HasKey(x => new { x.TrainingId, x.TopicId }); e.HasOne(x => x.Training).WithMany(x => x.Topics).HasForeignKey(x => x.TrainingId); e.HasOne(x => x.Topic).WithMany().HasForeignKey(x => x.TopicId).OnDelete(DeleteBehavior.Restrict); });
+    b.Entity<FirstAidLocation>(e => { e.ToTable("FirstAidLocation"); e.Property(x => x.Name).HasMaxLength(255); e.HasIndex(x => new { x.AssociationId, x.Name }).IsUnique(); e.HasOne<Association>().WithMany().HasForeignKey(x => x.AssociationId).OnDelete(DeleteBehavior.Restrict); });
+    foreach (var entity in b.Model.GetEntityTypes().Where(x => x.ClrType == typeof(FieldLog))) foreach (var p in entity.GetProperties().Where(x => x.ClrType == typeof(decimal) || x.ClrType == typeof(decimal?))) { p.SetPrecision(18); p.SetScale(4); }
+    var names = new[] { "ISPO", "RSPO", "SKI/ICS", "APD", "K3" };
+    var ids = Enumerable.Range(1, 5).Select(i => Guid.Parse($"b6000000-0000-0000-0000-{i:000000000000}")).ToArray();
+    b.Entity<TrainingTopic>().HasData(names.Select((name, i) => new TrainingTopic { Id = ids[i], Name = name }));
+    var package = Guid.Parse("b6000000-0000-0000-0001-000000000001");
+    b.Entity<TrainingPackage>().HasData(new TrainingPackage { Id = package, Name = "ISPO + RSPO + SKI/ICS" });
+    b.Entity<TrainingPackageTopic>().HasData(ids.Take(3).Select(id => new TrainingPackageTopic { PackageId = package, TopicId = id }));
+  }
+}

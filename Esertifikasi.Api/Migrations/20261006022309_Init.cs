@@ -4,6 +4,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
+#pragma warning disable CA1814 // Prefer jagged arrays over multidimensional
+
 namespace Esertifikasi.Api.Migrations
 {
     /// <inheritdoc />
@@ -148,6 +150,19 @@ namespace Esertifikasi.Api.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_RegionDatasetImport", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TrainingPackage",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TrainingPackage", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -491,6 +506,28 @@ namespace Esertifikasi.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "FirstAidLocation",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AssociationId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FirstAidLocation", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FirstAidLocation_Association_AssociationId",
+                        column: x => x.AssociationId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Association",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Poktan",
                 schema: "esertifikasi",
                 columns: table => new
@@ -530,6 +567,27 @@ namespace Esertifikasi.Api.Migrations
                         column: x => x.RegencyId,
                         principalSchema: "esertifikasi",
                         principalTable: "Regency",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "TrainingTopic",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    AssociationId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TrainingTopic", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_TrainingTopic_Association_AssociationId",
+                        column: x => x.AssociationId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Association",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -736,6 +794,52 @@ namespace Esertifikasi.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AssociationTraining",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false),
+                    AssociationId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LegacySessionId = table.Column<Guid>(type: "uuid", nullable: true),
+                    OriginalCertificationCycleId = table.Column<Guid>(type: "uuid", nullable: true),
+                    PoktanId = table.Column<Guid>(type: "uuid", nullable: true),
+                    Title = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    LegacyDescription = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
+                    StartDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    EndDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    CompletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
+                    ReopenReason = table.Column<string>(type: "text", nullable: true),
+                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssociationTraining", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_AssociationTraining_AspNetUsers_CreatedByUserId",
+                        column: x => x.CreatedByUserId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AssociationTraining_Association_AssociationId",
+                        column: x => x.AssociationId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Association",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_AssociationTraining_Poktan_PoktanId",
+                        column: x => x.PoktanId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Poktan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "IcsAuditorAssignment",
                 schema: "esertifikasi",
                 columns: table => new
@@ -768,6 +872,9 @@ namespace Esertifikasi.Api.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    DeletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true),
                     AssociationId = table.Column<Guid>(type: "uuid", nullable: false),
                     PoktanId = table.Column<Guid>(type: "uuid", nullable: false),
                     Type = table.Column<int>(type: "integer", nullable: false),
@@ -912,6 +1019,33 @@ namespace Esertifikasi.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "TrainingPackageTopic",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    PackageId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TopicId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_TrainingPackageTopic", x => new { x.PackageId, x.TopicId });
+                    table.ForeignKey(
+                        name: "FK_TrainingPackageTopic_TrainingPackage_PackageId",
+                        column: x => x.PackageId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "TrainingPackage",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_TrainingPackageTopic_TrainingTopic_TopicId",
+                        column: x => x.TopicId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "TrainingTopic",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "AuditFinding",
                 schema: "esertifikasi",
                 columns: table => new
@@ -953,6 +1087,53 @@ namespace Esertifikasi.Api.Migrations
                         column: x => x.PoktanId,
                         principalSchema: "esertifikasi",
                         principalTable: "Poktan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AssociationTrainingDay",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    TrainingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssociationTrainingDay", x => new { x.TrainingId, x.Date });
+                    table.ForeignKey(
+                        name: "FK_AssociationTrainingDay_AssociationTraining_TrainingId",
+                        column: x => x.TrainingId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AssociationTraining",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "AssociationTrainingTopic",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    TrainingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    TopicId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssociationTrainingTopic", x => new { x.TrainingId, x.TopicId });
+                    table.ForeignKey(
+                        name: "FK_AssociationTrainingTopic_AssociationTraining_TrainingId",
+                        column: x => x.TrainingId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AssociationTraining",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AssociationTrainingTopic_TrainingTopic_TopicId",
+                        column: x => x.TopicId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "TrainingTopic",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -1278,6 +1459,33 @@ namespace Esertifikasi.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "AssociationTrainingParticipant",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    TrainingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PetaniId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_AssociationTrainingParticipant", x => new { x.TrainingId, x.PetaniId });
+                    table.ForeignKey(
+                        name: "FK_AssociationTrainingParticipant_AssociationTraining_Training~",
+                        column: x => x.TrainingId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AssociationTraining",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_AssociationTrainingParticipant_Petani_PetaniId",
+                        column: x => x.PetaniId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Petani",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "CertificationParticipant",
                 schema: "esertifikasi",
                 columns: table => new
@@ -1498,7 +1706,10 @@ namespace Esertifikasi.Api.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    LocationId = table.Column<Guid>(type: "uuid", nullable: true),
                     Location = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1513,44 +1724,50 @@ namespace Esertifikasi.Api.Migrations
                         principalTable: "FirstAidKitMonitoring",
                         principalColumn: "MonitoringSubmissionId",
                         onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_FirstAidKitInspection_FirstAidLocation_LocationId",
+                        column: x => x.LocationId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "FirstAidLocation",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
-                name: "MemberComplaint",
+                name: "DailyTrainingAttendance",
                 schema: "esertifikasi",
                 columns: table => new
                 {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
-                    FarmerNameSnapshot = table.Column<string>(type: "text", nullable: true),
-                    NikSnapshot = table.Column<string>(type: "text", nullable: true),
-                    ReceivedOn = table.Column<DateOnly>(type: "date", nullable: false),
-                    ComplaintType = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
-                    Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
-                    FollowUp = table.Column<string>(type: "text", nullable: true),
-                    Status = table.Column<int>(type: "integer", nullable: false),
-                    ResolvedOn = table.Column<DateOnly>(type: "date", nullable: true),
-                    IsAnonymous = table.Column<bool>(type: "boolean", nullable: false),
-                    IsConfidential = table.Column<bool>(type: "boolean", nullable: false)
+                    TrainingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PetaniId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    Present = table.Column<bool>(type: "boolean", nullable: false),
+                    Notes = table.Column<string>(type: "text", nullable: true)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_MemberComplaint", x => x.Id);
+                    table.PrimaryKey("PK_DailyTrainingAttendance", x => new { x.TrainingId, x.PetaniId, x.Date });
                     table.ForeignKey(
-                        name: "FK_MemberComplaint_MemberComplaintMonitoring_MonitoringSubmiss~",
-                        column: x => x.MonitoringSubmissionId,
+                        name: "FK_DailyTrainingAttendance_AssociationTrainingDay_TrainingId_D~",
+                        columns: x => new { x.TrainingId, x.Date },
                         principalSchema: "esertifikasi",
-                        principalTable: "MemberComplaintMonitoring",
-                        principalColumn: "MonitoringSubmissionId",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_MemberComplaint_Petani_PetaniId",
-                        column: x => x.PetaniId,
-                        principalSchema: "esertifikasi",
-                        principalTable: "Petani",
-                        principalColumn: "Id",
+                        principalTable: "AssociationTrainingDay",
+                        principalColumns: new[] { "TrainingId", "Date" },
                         onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_DailyTrainingAttendance_AssociationTrainingParticipant_Trai~",
+                        columns: x => new { x.TrainingId, x.PetaniId },
+                        principalSchema: "esertifikasi",
+                        principalTable: "AssociationTrainingParticipant",
+                        principalColumns: new[] { "TrainingId", "PetaniId" },
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_DailyTrainingAttendance_AssociationTraining_TrainingId",
+                        column: x => x.TrainingId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AssociationTraining",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -1611,6 +1828,29 @@ namespace Esertifikasi.Api.Migrations
                         principalTable: "CertificationParticipant",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ActivityCounter",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    LahanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Activity = table.Column<int>(type: "integer", nullable: false),
+                    Year = table.Column<int>(type: "integer", nullable: false),
+                    LastNumber = table.Column<int>(type: "integer", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ActivityCounter", x => new { x.LahanId, x.Activity, x.Year });
+                    table.ForeignKey(
+                        name: "FK_ActivityCounter_Lahan_LahanId",
+                        column: x => x.LahanId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Lahan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -1690,12 +1930,14 @@ namespace Esertifikasi.Api.Migrations
                     NoChemicalActivityWithinFiveMeters = table.Column<bool>(type: "boolean", nullable: false),
                     HasWoodyPlantsWithinFiveMeters = table.Column<bool>(type: "boolean", nullable: false),
                     NoPlantingOnSteepSlope = table.Column<bool>(type: "boolean", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1733,14 +1975,17 @@ namespace Esertifikasi.Api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IncidentDate = table.Column<DateOnly>(type: "date", nullable: false),
                     Severity = table.Column<int>(type: "integer", nullable: false),
                     Chronology = table.Column<string>(type: "text", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1772,6 +2017,29 @@ namespace Esertifikasi.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "HarvestRotation",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    LahanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    StartDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    EndDate = table.Column<DateOnly>(type: "date", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_HarvestRotation", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_HarvestRotation_Lahan_LahanId",
+                        column: x => x.LahanId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Lahan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "HcvLocationAssessment",
                 schema: "esertifikasi",
                 columns: table => new
@@ -1780,12 +2048,14 @@ namespace Esertifikasi.Api.Migrations
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
                     Semester = table.Column<int>(type: "integer", nullable: false),
                     Location = table.Column<string>(type: "text", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1824,14 +2094,17 @@ namespace Esertifikasi.Api.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
                     InstalledOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    InstallationYear = table.Column<int>(type: "integer", nullable: true),
                     MarkerCount = table.Column<int>(type: "integer", nullable: false),
                     Condition = table.Column<int>(type: "integer", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1855,6 +2128,57 @@ namespace Esertifikasi.Api.Migrations
                         onDelete: ReferentialAction.Cascade);
                     table.ForeignKey(
                         name: "FK_LandBoundaryInspection_Petani_PetaniId",
+                        column: x => x.PetaniId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Petani",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "MemberComplaint",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
+                    FarmerNameSnapshot = table.Column<string>(type: "text", nullable: true),
+                    NikSnapshot = table.Column<string>(type: "text", nullable: true),
+                    LahanId = table.Column<Guid>(type: "uuid", nullable: true),
+                    LandLegalNumberSnapshot = table.Column<string>(type: "text", nullable: true),
+                    Notes = table.Column<string>(type: "text", nullable: true),
+                    ClosureReason = table.Column<string>(type: "text", nullable: true),
+                    ReceivedOn = table.Column<DateOnly>(type: "date", nullable: false),
+                    ComplaintType = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    Description = table.Column<string>(type: "character varying(4000)", maxLength: 4000, nullable: false),
+                    FollowUp = table.Column<string>(type: "text", nullable: true),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    ResolvedOn = table.Column<DateOnly>(type: "date", nullable: true),
+                    IsAnonymous = table.Column<bool>(type: "boolean", nullable: false),
+                    IsConfidential = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_MemberComplaint", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_MemberComplaint_Lahan_LahanId",
+                        column: x => x.LahanId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Lahan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_MemberComplaint_MemberComplaintMonitoring_MonitoringSubmiss~",
+                        column: x => x.MonitoringSubmissionId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "MemberComplaintMonitoring",
+                        principalColumn: "MonitoringSubmissionId",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_MemberComplaint_Petani_PetaniId",
                         column: x => x.PetaniId,
                         principalSchema: "esertifikasi",
                         principalTable: "Petani",
@@ -1916,12 +2240,14 @@ namespace Esertifikasi.Api.Migrations
                     ObservedDensity = table.Column<decimal>(type: "numeric", nullable: true),
                     DensityUnit = table.Column<string>(type: "text", nullable: true),
                     Treatment = table.Column<string>(type: "text", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -1963,12 +2289,14 @@ namespace Esertifikasi.Api.Migrations
                     DiseaseType = table.Column<string>(type: "text", nullable: false),
                     Result = table.Column<string>(type: "text", nullable: true),
                     Treatment = table.Column<string>(type: "text", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2007,12 +2335,14 @@ namespace Esertifikasi.Api.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
                     Activity = table.Column<int>(type: "integer", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2054,12 +2384,14 @@ namespace Esertifikasi.Api.Migrations
                     SpeciesKind = table.Column<int>(type: "integer", nullable: false),
                     SpeciesName = table.Column<string>(type: "text", nullable: false),
                     Description = table.Column<string>(type: "text", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2099,12 +2431,14 @@ namespace Esertifikasi.Api.Migrations
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
                     Condition = table.Column<int>(type: "integer", nullable: false),
                     Description = table.Column<string>(type: "text", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2146,12 +2480,14 @@ namespace Esertifikasi.Api.Migrations
                     WeedType = table.Column<string>(type: "text", nullable: false),
                     Result = table.Column<string>(type: "text", nullable: true),
                     Treatment = table.Column<string>(type: "text", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2189,12 +2525,14 @@ namespace Esertifikasi.Api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2232,15 +2570,18 @@ namespace Esertifikasi.Api.Migrations
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     MonitoringSubmissionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    IncidentDate = table.Column<DateOnly>(type: "date", nullable: false),
                     Category = table.Column<int>(type: "integer", nullable: false),
                     CaseCount = table.Column<int>(type: "integer", nullable: false),
                     Chronology = table.Column<string>(type: "text", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
                     PetaniId = table.Column<Guid>(type: "uuid", nullable: true),
                     LahanId = table.Column<Guid>(type: "uuid", nullable: true),
                     FarmerNameSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     NikSnapshot = table.Column<string>(type: "character varying(16)", maxLength: 16, nullable: true),
                     LandLegalNumberSnapshot = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     LandAreaSnapshot = table.Column<decimal>(type: "numeric(18,2)", precision: 18, scale: 2, nullable: true),
+                    ObservationId = table.Column<Guid>(type: "uuid", nullable: false),
                     ObservedOn = table.Column<DateOnly>(type: "date", nullable: false),
                     Notes = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     FollowUp = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true)
@@ -2446,6 +2787,70 @@ namespace Esertifikasi.Api.Migrations
                         principalTable: "CertificationParticipantLahan",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "FieldLog",
+                schema: "esertifikasi",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    Version = table.Column<Guid>(type: "uuid", nullable: false),
+                    LahanId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Activity = table.Column<int>(type: "integer", nullable: false),
+                    ActivityDate = table.Column<DateOnly>(type: "date", nullable: false),
+                    SequenceNumber = table.Column<int>(type: "integer", nullable: false),
+                    RotationId = table.Column<Guid>(type: "uuid", nullable: true),
+                    FarmerNameSnapshot = table.Column<string>(type: "text", nullable: false),
+                    NikSnapshot = table.Column<string>(type: "text", nullable: false),
+                    LandLegalNumberSnapshot = table.Column<string>(type: "text", nullable: true),
+                    LandAreaHaSnapshot = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: true),
+                    Buyer = table.Column<string>(type: "text", nullable: true),
+                    MaterialName = table.Column<string>(type: "text", nullable: true),
+                    WeightKg = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    UnitPrice = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    BunchCount = table.Column<int>(type: "integer", nullable: false),
+                    Deductions = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    Transport = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    WorkerCount = table.Column<int>(type: "integer", nullable: false),
+                    WagePerPerson = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    TreeCount = table.Column<int>(type: "integer", nullable: false),
+                    DosePerTreeKg = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    TreatedAreaHa = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    DoseLitersPerHa = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    WagePerTree = table.Column<decimal>(type: "numeric(18,4)", precision: 18, scale: 4, nullable: false),
+                    Notes = table.Column<string>(type: "text", nullable: true),
+                    Status = table.Column<int>(type: "integer", nullable: false),
+                    ReopenReason = table.Column<string>(type: "text", nullable: true),
+                    CreatedByUserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: false),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    DeletedAt = table.Column<DateTimeOffset>(type: "timestamp with time zone", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_FieldLog", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_FieldLog_AspNetUsers_CreatedByUserId",
+                        column: x => x.CreatedByUserId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_FieldLog_HarvestRotation_RotationId",
+                        column: x => x.RotationId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "HarvestRotation",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                    table.ForeignKey(
+                        name: "FK_FieldLog_Lahan_LahanId",
+                        column: x => x.LahanId,
+                        principalSchema: "esertifikasi",
+                        principalTable: "Lahan",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
                 });
 
             migrationBuilder.CreateTable(
@@ -2696,6 +3101,36 @@ namespace Esertifikasi.Api.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
+            migrationBuilder.InsertData(
+                schema: "esertifikasi",
+                table: "TrainingPackage",
+                columns: new[] { "Id", "Name" },
+                values: new object[] { new Guid("b6000000-0000-0000-0001-000000000001"), "ISPO + RSPO + SKI/ICS" });
+
+            migrationBuilder.InsertData(
+                schema: "esertifikasi",
+                table: "TrainingTopic",
+                columns: new[] { "Id", "AssociationId", "Name" },
+                values: new object[,]
+                {
+                    { new Guid("b6000000-0000-0000-0000-000000000001"), null, "ISPO" },
+                    { new Guid("b6000000-0000-0000-0000-000000000002"), null, "RSPO" },
+                    { new Guid("b6000000-0000-0000-0000-000000000003"), null, "SKI/ICS" },
+                    { new Guid("b6000000-0000-0000-0000-000000000004"), null, "APD" },
+                    { new Guid("b6000000-0000-0000-0000-000000000005"), null, "K3" }
+                });
+
+            migrationBuilder.InsertData(
+                schema: "esertifikasi",
+                table: "TrainingPackageTopic",
+                columns: new[] { "PackageId", "TopicId" },
+                values: new object[,]
+                {
+                    { new Guid("b6000000-0000-0000-0001-000000000001"), new Guid("b6000000-0000-0000-0000-000000000001") },
+                    { new Guid("b6000000-0000-0000-0001-000000000001"), new Guid("b6000000-0000-0000-0000-000000000002") },
+                    { new Guid("b6000000-0000-0000-0001-000000000001"), new Guid("b6000000-0000-0000-0000-000000000003") }
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 schema: "esertifikasi",
@@ -2819,6 +3254,43 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi",
                 table: "AssociationDocumentSubmission",
                 column: "SubmittedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTraining_AssociationId",
+                schema: "esertifikasi",
+                table: "AssociationTraining",
+                column: "AssociationId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTraining_CreatedByUserId",
+                schema: "esertifikasi",
+                table: "AssociationTraining",
+                column: "CreatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTraining_LegacySessionId",
+                schema: "esertifikasi",
+                table: "AssociationTraining",
+                column: "LegacySessionId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTraining_PoktanId",
+                schema: "esertifikasi",
+                table: "AssociationTraining",
+                column: "PoktanId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTrainingParticipant_PetaniId",
+                schema: "esertifikasi",
+                table: "AssociationTrainingParticipant",
+                column: "PetaniId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_AssociationTrainingTopic_TopicId",
+                schema: "esertifikasi",
+                table: "AssociationTrainingTopic",
+                column: "TopicId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_AuditFinding_CertificationAuditId_Code",
@@ -2984,6 +3456,12 @@ namespace Esertifikasi.Api.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_DailyTrainingAttendance_TrainingId_Date",
+                schema: "esertifikasi",
+                table: "DailyTrainingAttendance",
+                columns: new[] { "TrainingId", "Date" });
+
+            migrationBuilder.CreateIndex(
                 name: "IX_Disclosure_CertificationCycleId_VersionNumber",
                 schema: "esertifikasi",
                 table: "Disclosure",
@@ -3121,6 +3599,24 @@ namespace Esertifikasi.Api.Migrations
                 column: "UploadedByUserId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FieldLog_CreatedByUserId",
+                schema: "esertifikasi",
+                table: "FieldLog",
+                column: "CreatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FieldLog_LahanId_Activity_ActivityDate",
+                schema: "esertifikasi",
+                table: "FieldLog",
+                columns: new[] { "LahanId", "Activity", "ActivityDate" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FieldLog_RotationId",
+                schema: "esertifikasi",
+                table: "FieldLog",
+                column: "RotationId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FireIncident_LahanId",
                 schema: "esertifikasi",
                 table: "FireIncident",
@@ -3139,6 +3635,12 @@ namespace Esertifikasi.Api.Migrations
                 column: "PetaniId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_FirstAidKitInspection_LocationId",
+                schema: "esertifikasi",
+                table: "FirstAidKitInspection",
+                column: "LocationId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_FirstAidKitInspection_MonitoringSubmissionId",
                 schema: "esertifikasi",
                 table: "FirstAidKitInspection",
@@ -3149,6 +3651,19 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi",
                 table: "FirstAidKitItemInspection",
                 column: "FirstAidKitInspectionId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_FirstAidLocation_AssociationId_Name",
+                schema: "esertifikasi",
+                table: "FirstAidLocation",
+                columns: new[] { "AssociationId", "Name" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_HarvestRotation_LahanId",
+                schema: "esertifikasi",
+                table: "HarvestRotation",
+                column: "LahanId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_HcvLocationAssessment_LahanId",
@@ -3222,6 +3737,12 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi",
                 table: "LandMappingRecord",
                 column: "MappedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_MemberComplaint_LahanId",
+                schema: "esertifikasi",
+                table: "MemberComplaint",
+                column: "LahanId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MemberComplaint_MonitoringSubmissionId",
@@ -3346,7 +3867,8 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi",
                 table: "MonitoringSubmission",
                 columns: new[] { "PoktanId", "Type", "PeriodStart", "PeriodEnd" },
-                unique: true);
+                unique: true,
+                filter: "\"IsDeleted\" = false");
 
             migrationBuilder.CreateIndex(
                 name: "IX_MonitoringSubmission_ReopenedByUserId",
@@ -3557,6 +4079,12 @@ namespace Esertifikasi.Api.Migrations
                 column: "PetaniId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_TrainingPackageTopic_TopicId",
+                schema: "esertifikasi",
+                table: "TrainingPackageTopic",
+                column: "TopicId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_TrainingSession_CertificationCycleId",
                 schema: "esertifikasi",
                 table: "TrainingSession",
@@ -3567,6 +4095,13 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi",
                 table: "TrainingSession",
                 column: "CreatedByUserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_TrainingTopic_AssociationId_Name",
+                schema: "esertifikasi",
+                table: "TrainingTopic",
+                columns: new[] { "AssociationId", "Name" },
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_TurneraInspection_LahanId",
@@ -3676,6 +4211,10 @@ namespace Esertifikasi.Api.Migrations
         protected override void Down(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.DropTable(
+                name: "ActivityCounter",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoleClaims",
                 schema: "esertifikasi");
 
@@ -3701,6 +4240,10 @@ namespace Esertifikasi.Api.Migrations
 
             migrationBuilder.DropTable(
                 name: "AssociationDocumentSubmission",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "AssociationTrainingTopic",
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
@@ -3732,11 +4275,19 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
+                name: "DailyTrainingAttendance",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "DisclosureLahan",
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
                 name: "DisclosureParticipant",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "FieldLog",
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
@@ -3828,6 +4379,10 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
+                name: "TrainingPackageTopic",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "TurneraInspection",
                 schema: "esertifikasi");
 
@@ -3868,7 +4423,19 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
+                name: "AssociationTrainingDay",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "AssociationTrainingParticipant",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "Disclosure",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "HarvestRotation",
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
@@ -3908,6 +4475,14 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
+                name: "TrainingPackage",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "TrainingTopic",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "TurneraMonitoring",
                 schema: "esertifikasi");
 
@@ -3928,7 +4503,15 @@ namespace Esertifikasi.Api.Migrations
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(
+                name: "AssociationTraining",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
                 name: "FirstAidKitMonitoring",
+                schema: "esertifikasi");
+
+            migrationBuilder.DropTable(
+                name: "FirstAidLocation",
                 schema: "esertifikasi");
 
             migrationBuilder.DropTable(

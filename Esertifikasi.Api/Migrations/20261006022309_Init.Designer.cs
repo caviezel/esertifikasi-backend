@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Esertifikasi.Api.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    [Migration("20260928030623_Init")]
+    [Migration("20261006022309_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -25,6 +25,29 @@ namespace Esertifikasi.Api.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.ActivityCounter", b =>
+                {
+                    b.Property<Guid>("LahanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Activity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Year")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("LastNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("LahanId", "Activity", "Year");
+
+                    b.ToTable("ActivityCounter", "esertifikasi");
+                });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.ApplicationUser", b =>
                 {
@@ -252,6 +275,112 @@ namespace Esertifikasi.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("AssociationDocumentSubmission", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTraining", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssociationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("LegacyDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid?>("LegacySessionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("OriginalCertificationCycleId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("PoktanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReopenReason")
+                        .HasColumnType("text");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssociationId");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("LegacySessionId")
+                        .IsUnique();
+
+                    b.HasIndex("PoktanId");
+
+                    b.ToTable("AssociationTraining", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingDay", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.HasKey("TrainingId", "Date");
+
+                    b.ToTable("AssociationTrainingDay", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingParticipant", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PetaniId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TrainingId", "PetaniId");
+
+                    b.HasIndex("PetaniId");
+
+                    b.ToTable("AssociationTrainingParticipant", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingTopic", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("TrainingId", "TopicId");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("AssociationTrainingTopic", "esertifikasi");
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AuditFinding", b =>
@@ -682,6 +811,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<bool>("HasWoodyPlantsWithinFiveMeters")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -709,6 +841,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -805,6 +940,30 @@ namespace Esertifikasi.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("CycleStepProgress", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.DailyTrainingAttendance", b =>
+                {
+                    b.Property<Guid>("TrainingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("PetaniId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<bool>("Present")
+                        .HasColumnType("boolean");
+
+                    b.HasKey("TrainingId", "PetaniId", "Date");
+
+                    b.HasIndex("TrainingId", "Date");
+
+                    b.ToTable("DailyTrainingAttendance", "esertifikasi");
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.Disclosure", b =>
@@ -1120,6 +1279,129 @@ namespace Esertifikasi.Api.Migrations
                     b.ToTable("DocumentVersion", "esertifikasi");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FieldLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Activity")
+                        .HasColumnType("integer");
+
+                    b.Property<DateOnly>("ActivityDate")
+                        .HasColumnType("date");
+
+                    b.Property<int>("BunchCount")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Buyer")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatedByUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("Deductions")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal>("DoseLitersPerHa")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("DosePerTreeKg")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("FarmerNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("LahanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal?>("LandAreaHaSnapshot")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<string>("LandLegalNumberSnapshot")
+                        .HasColumnType("text");
+
+                    b.Property<string>("MaterialName")
+                        .HasColumnType("text");
+
+                    b.Property<string>("NikSnapshot")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ReopenReason")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("RotationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("SequenceNumber")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("Transport")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("TreatedAreaHa")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("TreeCount")
+                        .HasColumnType("integer");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("WagePerPerson")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("WagePerTree")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<decimal>("WeightKg")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("numeric(18,4)");
+
+                    b.Property<int>("WorkerCount")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedByUserId");
+
+                    b.HasIndex("RotationId");
+
+                    b.HasIndex("LahanId", "Activity", "ActivityDate");
+
+                    b.ToTable("FieldLog", "esertifikasi");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FireIncident", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1137,6 +1419,12 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("FollowUp")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<DateOnly>("IncidentDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
@@ -1159,6 +1447,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -1202,10 +1493,16 @@ namespace Esertifikasi.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Location")
                         .IsRequired()
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<Guid?>("LocationId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid>("MonitoringSubmissionId")
                         .HasColumnType("uuid");
@@ -1214,10 +1511,15 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
+
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LocationId");
 
                     b.HasIndex("MonitoringSubmissionId");
 
@@ -1267,6 +1569,58 @@ namespace Esertifikasi.Api.Migrations
                     b.ToTable("FirstAidKitMonitoring", "esertifikasi");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FirstAidLocation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("AssociationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssociationId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("FirstAidLocation", "esertifikasi");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.HarvestRotation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("EndDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("LahanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<DateOnly>("StartDate")
+                        .HasColumnType("date");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LahanId");
+
+                    b.ToTable("HarvestRotation", "esertifikasi");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.HcvLocationAssessment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1280,6 +1634,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("FollowUp")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
@@ -1306,6 +1663,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -1592,8 +1952,14 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<int?>("InstallationYear")
+                        .HasColumnType("integer");
+
                     b.Property<DateOnly?>("InstalledOn")
                         .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
@@ -1619,6 +1985,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -1692,6 +2061,9 @@ namespace Esertifikasi.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<string>("ClosureReason")
+                        .HasColumnType("text");
+
                     b.Property<string>("ComplaintType")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -1714,11 +2086,26 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<bool>("IsConfidential")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid?>("LahanId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("LandLegalNumberSnapshot")
+                        .HasColumnType("text");
+
                     b.Property<Guid>("MonitoringSubmissionId")
                         .HasColumnType("uuid");
 
                     b.Property<string>("NikSnapshot")
                         .HasColumnType("text");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<Guid?>("PetaniId")
                         .HasColumnType("uuid");
@@ -1733,6 +2120,8 @@ namespace Esertifikasi.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("LahanId");
 
                     b.HasIndex("MonitoringSubmissionId");
 
@@ -2039,6 +2428,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<Guid>("CreatedByUserId")
                         .HasColumnType("uuid");
 
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<DateTimeOffset?>("FinalizedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -2047,6 +2439,9 @@ namespace Esertifikasi.Api.Migrations
 
                     b.Property<int>("Group")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<DateOnly>("PeriodEnd")
                         .HasColumnType("date");
@@ -2081,6 +2476,10 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
                     b.HasIndex("AssociationId");
@@ -2092,7 +2491,8 @@ namespace Esertifikasi.Api.Migrations
                     b.HasIndex("ReopenedByUserId");
 
                     b.HasIndex("PoktanId", "Type", "PeriodStart", "PeriodEnd")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsDeleted\" = false");
 
                     b.ToTable("MonitoringSubmission", "esertifikasi", t =>
                         {
@@ -2155,6 +2555,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -2176,6 +2579,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal?>("ObservedDensity")
                         .HasColumnType("numeric");
@@ -2349,6 +2755,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -2370,6 +2779,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -2498,6 +2910,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -2519,6 +2934,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -2600,6 +3018,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -2621,6 +3042,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -2827,6 +3251,61 @@ namespace Esertifikasi.Api.Migrations
                     b.ToTable("TrainingAttendance", "esertifikasi");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingPackage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("TrainingPackage", "esertifikasi");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0001-000000000001"),
+                            Name = "ISPO + RSPO + SKI/ICS"
+                        });
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingPackageTopic", b =>
+                {
+                    b.Property<Guid>("PackageId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("TopicId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("PackageId", "TopicId");
+
+                    b.HasIndex("TopicId");
+
+                    b.ToTable("TrainingPackageTopic", "esertifikasi");
+
+                    b.HasData(
+                        new
+                        {
+                            PackageId = new Guid("b6000000-0000-0000-0001-000000000001"),
+                            TopicId = new Guid("b6000000-0000-0000-0000-000000000001")
+                        },
+                        new
+                        {
+                            PackageId = new Guid("b6000000-0000-0000-0001-000000000001"),
+                            TopicId = new Guid("b6000000-0000-0000-0000-000000000002")
+                        },
+                        new
+                        {
+                            PackageId = new Guid("b6000000-0000-0000-0001-000000000001"),
+                            TopicId = new Guid("b6000000-0000-0000-0000-000000000003")
+                        });
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingSession", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2863,6 +3342,55 @@ namespace Esertifikasi.Api.Migrations
                     b.ToTable("TrainingSession", "esertifikasi");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingTopic", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssociationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssociationId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("TrainingTopic", "esertifikasi");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0000-000000000001"),
+                            Name = "ISPO"
+                        },
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0000-000000000002"),
+                            Name = "RSPO"
+                        },
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0000-000000000003"),
+                            Name = "SKI/ICS"
+                        },
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0000-000000000004"),
+                            Name = "APD"
+                        },
+                        new
+                        {
+                            Id = new Guid("b6000000-0000-0000-0000-000000000005"),
+                            Name = "K3"
+                        });
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TurneraInspection", b =>
                 {
                     b.Property<Guid>("Id")
@@ -2882,6 +3410,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("FollowUp")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
 
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
@@ -2904,6 +3435,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -2986,6 +3520,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -3007,6 +3544,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -3062,6 +3602,9 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -3083,6 +3626,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -3202,6 +3748,12 @@ namespace Esertifikasi.Api.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<DateOnly>("IncidentDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
                     b.Property<Guid?>("LahanId")
                         .HasColumnType("uuid");
 
@@ -3223,6 +3775,9 @@ namespace Esertifikasi.Api.Migrations
                     b.Property<string>("Notes")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
+
+                    b.Property<Guid>("ObservationId")
+                        .HasColumnType("uuid");
 
                     b.Property<DateOnly>("ObservedOn")
                         .HasColumnType("date");
@@ -3387,6 +3942,15 @@ namespace Esertifikasi.Api.Migrations
                     b.ToTable("AspNetUserTokens", "esertifikasi");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.ActivityCounter", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Lahan", null)
+                        .WithMany()
+                        .HasForeignKey("LahanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.Association", b =>
                 {
                     b.HasOne("Esertifikasi.Api.Domain.Entities.Village", "Desa")
@@ -3492,6 +4056,79 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("ReviewedByUser");
 
                     b.Navigation("SubmittedByUser");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTraining", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Association", "Association")
+                        .WithMany()
+                        .HasForeignKey("AssociationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Poktan", "Poktan")
+                        .WithMany()
+                        .HasForeignKey("PoktanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Association");
+
+                    b.Navigation("Poktan");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingDay", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTraining", "Training")
+                        .WithMany("Days")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Training");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingParticipant", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Petani", "Petani")
+                        .WithMany()
+                        .HasForeignKey("PetaniId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTraining", "Training")
+                        .WithMany("Participants")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Petani");
+
+                    b.Navigation("Training");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTrainingTopic", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.TrainingTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTraining", "Training")
+                        .WithMany("Topics")
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Topic");
+
+                    b.Navigation("Training");
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AuditFinding", b =>
@@ -3733,6 +4370,29 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("CertificationCycle");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.DailyTrainingAttendance", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTraining", "Training")
+                        .WithMany()
+                        .HasForeignKey("TrainingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTrainingDay", null)
+                        .WithMany()
+                        .HasForeignKey("TrainingId", "Date")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.AssociationTrainingParticipant", null)
+                        .WithMany()
+                        .HasForeignKey("TrainingId", "PetaniId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Training");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.Disclosure", b =>
                 {
                     b.HasOne("Esertifikasi.Api.Domain.Entities.CertificationCycle", "CertificationCycle")
@@ -3895,6 +4555,30 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("UploadedByUser");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FieldLog", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.ApplicationUser", null)
+                        .WithMany()
+                        .HasForeignKey("CreatedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Lahan", "Lahan")
+                        .WithMany()
+                        .HasForeignKey("LahanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.HarvestRotation", "Rotation")
+                        .WithMany()
+                        .HasForeignKey("RotationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Lahan");
+
+                    b.Navigation("Rotation");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FireIncident", b =>
                 {
                     b.HasOne("Esertifikasi.Api.Domain.Entities.Lahan", "Lahan")
@@ -3931,6 +4615,11 @@ namespace Esertifikasi.Api.Migrations
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FirstAidKitInspection", b =>
                 {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.FirstAidLocation", null)
+                        .WithMany()
+                        .HasForeignKey("LocationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Esertifikasi.Api.Domain.Entities.FirstAidKitMonitoring", null)
                         .WithMany("Inspections")
                         .HasForeignKey("MonitoringSubmissionId")
@@ -3956,6 +4645,26 @@ namespace Esertifikasi.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("MonitoringSubmission");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.FirstAidLocation", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Association", null)
+                        .WithMany()
+                        .HasForeignKey("AssociationId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.HarvestRotation", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Lahan", "Lahan")
+                        .WithMany()
+                        .HasForeignKey("LahanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Lahan");
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.HcvLocationAssessment", b =>
@@ -4083,6 +4792,11 @@ namespace Esertifikasi.Api.Migrations
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.MemberComplaint", b =>
                 {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Lahan", null)
+                        .WithMany()
+                        .HasForeignKey("LahanId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Esertifikasi.Api.Domain.Entities.MemberComplaintMonitoring", null)
                         .WithMany("Complaints")
                         .HasForeignKey("MonitoringSubmissionId")
@@ -4515,6 +5229,25 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("TrainingSession");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingPackageTopic", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.TrainingPackage", "Package")
+                        .WithMany("Topics")
+                        .HasForeignKey("PackageId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.TrainingTopic", "Topic")
+                        .WithMany()
+                        .HasForeignKey("TopicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Package");
+
+                    b.Navigation("Topic");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingSession", b =>
                 {
                     b.HasOne("Esertifikasi.Api.Domain.Entities.CertificationCycle", "CertificationCycle")
@@ -4532,6 +5265,14 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("CertificationCycle");
 
                     b.Navigation("CreatedByUser");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingTopic", b =>
+                {
+                    b.HasOne("Esertifikasi.Api.Domain.Entities.Association", null)
+                        .WithMany()
+                        .HasForeignKey("AssociationId")
+                        .OnDelete(DeleteBehavior.Restrict);
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TurneraInspection", b =>
@@ -4782,6 +5523,15 @@ namespace Esertifikasi.Api.Migrations
                     b.Navigation("Poktan");
                 });
 
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.AssociationTraining", b =>
+                {
+                    b.Navigation("Days");
+
+                    b.Navigation("Participants");
+
+                    b.Navigation("Topics");
+                });
+
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.Certificate", b =>
                 {
                     b.Navigation("Lahan");
@@ -4956,6 +5706,11 @@ namespace Esertifikasi.Api.Migrations
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.Regency", b =>
                 {
                     b.Navigation("Districts");
+                });
+
+            modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingPackage", b =>
+                {
+                    b.Navigation("Topics");
                 });
 
             modelBuilder.Entity("Esertifikasi.Api.Domain.Entities.TrainingSession", b =>

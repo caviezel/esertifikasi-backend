@@ -132,8 +132,8 @@ public sealed class CertificationWorkflowService {
     if (!cycle.IsCurrent)
       throw new CertificationWorkflowException(
           "Siklus historis hanya dapat dilihat.", "CERTIFICATION_CYCLE_READ_ONLY");
-    if (cycle.Status != CertificationCycleStatus.Active || cycle.CurrentPhase >= CertificationPhase.InternalAudit)
-      throw new CertificationWorkflowException("Scope peserta dan Lahan tidak dapat diubah setelah audit internal dimulai atau siklus tidak aktif.");
+    if (cycle.Status != CertificationCycleStatus.Active)
+      throw new CertificationWorkflowException("Scope peserta dan Lahan tidak dapat diubah pada siklus yang tidak aktif.");
     var hasCompletedDisclosure = await _db.Disclosures.AnyAsync(x => x.CertificationCycleId == cycleId
         && x.Status == DisclosureStatus.Completed, ct);
     if (!hasCompletedDisclosure) return;
@@ -199,15 +199,18 @@ public sealed class CertificationWorkflowService {
 
   private static void EnsureActiveBeforeAudit(CertificationCycle cycle) {
     EnsureCurrent(cycle);
-    if (cycle.Status != CertificationCycleStatus.Active || cycle.CurrentPhase >= CertificationPhase.InternalAudit) {
-      throw new CertificationWorkflowException("Peserta tidak dapat ditambahkan setelah audit dimulai atau siklus tidak aktif.");
+    if (cycle.Status != CertificationCycleStatus.Active) {
+      throw new CertificationWorkflowException("Peserta tidak dapat ditambahkan pada siklus yang tidak aktif.");
     }
   }
 
   private static void EnsureValidTransition(CertificationCycle cycle, CertificationPhase target) {
     EnsureCurrent(cycle);
     if (cycle.Status != CertificationCycleStatus.Active) throw new CertificationWorkflowException("Siklus tidak aktif.");
-    if ((int)target != (int)cycle.CurrentPhase + 1) throw new CertificationWorkflowException("Tahap workflow harus dijalankan secara berurutan.");
+    var isFinalizationJump = target == CertificationPhase.CertificateIssuance
+        && cycle.CurrentPhase < CertificationPhase.CertificateIssuance;
+    if (!isFinalizationJump && (int)target != (int)cycle.CurrentPhase + 1)
+      throw new CertificationWorkflowException("Tahap workflow harus dijalankan secara berurutan.");
     if (target == CertificationPhase.InternalAudit && !cycle.Disclosures.Any(x => x.Status == DisclosureStatus.Completed)) {
       throw new CertificationWorkflowException("Disclosure harus diselesaikan sebelum audit internal dimulai.");
     }

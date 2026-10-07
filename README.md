@@ -2,6 +2,18 @@
 
 ASP.NET Core 8 API backed by PostgreSQL and Entity Framework Core.
 
+## VS Code setup
+
+Both projects explicitly use C# 12. Install or update Microsoft's C# extension
+(`ms-dotnettools.csharp`) and open `esertifikasi-backend.sln` from this folder.
+Use the Roslyn language server by setting `"dotnet.server.useOmnisharp": false`
+in workspace settings. C# Dev Kit is optional.
+
+Older C# extensions such as 1.25.0 cannot parse the collection expressions (`[]`)
+and primary constructors used here, even when `dotnet build` succeeds. Update
+the extension, then run **Developer: Reload Window** from the command palette.
+Do not hide editor diagnostics to work around an outdated language server.
+
 ## Domain
 
 - `Association` has many `Poktan`.
@@ -91,6 +103,8 @@ configuration, allowing the pending client values to be supplied without a
 schema change.
 
 ## Administrative regions
+
+For production imports over an unreliable Mac-to-PostgreSQL connection, use the separate `import-regions-remote` workflow. It generates one self-contained SQL artifact, uploads over SSH/SCP, and runs psql locally on EC2. See [remote region import setup, confirmation, and commands](docs/region-import-remote.md). The existing `import-regions` command remains available.
 
 Petani and Lahan store a nullable 64-bit `DesaId`. The API validates supplied
 IDs against a local Province → Regency → District → Village reference hierarchy,
@@ -206,3 +220,20 @@ dotnet tool run dotnet-ef migrations add InitialEsertifikasi \
 dotnet tool run dotnet-ef database update \
   --project Esertifikasi.Api --startup-project Esertifikasi.Api
 ```
+
+## Operations integration
+
+- [Frontend guide: association training, field logs, and MICS](docs/operations-frontend-guide.md)
+- [Manual migration and historical-data rollout](docs/operations-migration-notes.md)
+
+Region import commits Province, Regency, and District as separate transactional stages in FK order. On PostgreSQL, Village import uses Npgsql Binary COPY into a transaction-local temporary table, then one server-side UPSERT by `Id` and a server-side update to deactivate missing villages. These Village operations commit together; failure rolls back the entire Village stage while retaining previously committed parent stages. The temporary table drops on commit and its creation is undone on rollback. Village writes bypass EF `SaveChangesAsync`; the existing in-memory/SQLite test paths retain their EF implementation. CSV parsing, checksums, and hierarchy validation are unchanged. The dataset completion marker is saved only after every stage succeeds. Existing command batching, command timeouts, and diagnostic stall reporting remain in place. Bulk-operation logs include elapsed time, input row counts, and affected/copied row counts.
+
+PostgreSQL importer tests create and drop uniquely named test databases. Set `REGION_IMPORT_TEST_POSTGRES` to an isolated PostgreSQL server connection string with `CREATEDB` permission, then run:
+
+```bash
+dotnet test Esertifikasi.Api.IntegrationTests --filter FullyQualifiedName~RegionDatasetImporterTests
+```
+
+Without that variable, PostgreSQL tests are skipped; the in-memory/SQLite importer tests still run. The PostgreSQL tests exercise the checked-in 83,762-Village dataset, upserts, missing-row deactivation, rollback, temporary-table cleanup on the same open session, duplicate input, unique-code conflicts, and cancellation.
+
+If an import is blocked by another transaction, PostgreSQL now stops the lock wait after 10 seconds and reports a region-import lock error. Inspect `pg_stat_activity` / `pg_blocking_pids`, and finish or roll back the blocking transaction before retrying. Do not terminate another session without confirming that its uncommitted work may be discarded.
